@@ -24,6 +24,14 @@ db.exec(`
 		channel_id TEXT NOT NULL,
 		message_id TEXT NOT NULL
 	);
+	CREATE TABLE IF NOT EXISTS guestbook (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		name       TEXT NOT NULL,
+		url        TEXT,
+		message    TEXT NOT NULL,
+		ip_hash    TEXT NOT NULL,
+		created_at INTEGER NOT NULL
+	);
 `);
 
 export type SiteStatus = "active" | "suspended";
@@ -64,6 +72,32 @@ export const Reserved = {
 			.run(slug, by, Date.now()),
 	remove: (slug: string) =>
 		db.query("DELETE FROM reserved WHERE slug = ?").run(slug).changes > 0,
+};
+
+export type GuestbookRow = {
+	id: number;
+	name: string;
+	url: string | null;
+	message: string;
+	ip_hash: string;
+	created_at: number;
+};
+
+export const Guestbook = {
+	recent: (limit: number) =>
+		db.query<GuestbookRow, [number]>("SELECT * FROM guestbook ORDER BY id DESC LIMIT ?").all(limit),
+	count: () =>
+		db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM guestbook").get()!.n,
+	get: (id: number) =>
+		db.query<GuestbookRow, [number]>("SELECT * FROM guestbook WHERE id = ?").get(id),
+	insert: (name: string, url: string | null, message: string, ipHash: string) =>
+		db.query("INSERT INTO guestbook (name, url, message, ip_hash, created_at) VALUES (?, ?, ?, ?, ?)")
+			.run(name, url, message, ipHash, Date.now()),
+	remove: (id: number) =>
+		db.query("DELETE FROM guestbook WHERE id = ?").run(id).changes > 0,
+	/** Delete every entry sharing an IP hash (for cleaning up after one spammer). */
+	removeByIpHash: (ipHash: string) =>
+		db.query("DELETE FROM guestbook WHERE ip_hash = ?").run(ipHash).changes,
 };
 
 export const Menus = {

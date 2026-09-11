@@ -1,0 +1,67 @@
+<html>
+<head>
+<title>guestbook - unixcore.sh</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style type="text/css">
+	textarea, input { background: #000; color: #c0c0c0; border: 1px solid #c0c0c0; font-family: "Times New Roman", Times, serif; font-size: 14px; }
+	input[type=submit] { cursor: pointer; padding: 2px 10px; }
+	.entry { margin: 0 0 14px 0; }
+	.meta { color: #808080; font-size: 12px; }
+	.err { color: #ff6666; }
+	.ok { color: #66ff99; }
+	.hp { position: absolute; left: -9999px; }
+	.cf-turnstile { margin: 8px 0; }
+</style>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body bgcolor="#000000" background="/_hub/tile.png" text="#c0c0c0" link="#66ff99" vlink="#33aa66" alink="#ffffff">
+
+<br><br>
+<center>
+<table border="1" cellpadding="12" cellspacing="0" bgcolor="#000000" width="480">
+<tr><td>
+<font face="Times New Roman, Times, serif">
+
+<center>
+<h2>guestbook</h2>
+<p><a href="/">&lt;- back to unixcore.sh</a></p>
+</center>
+<hr size="1" noshade>
+
+{{notice}}
+
+<form method="post" action="/guestbook">
+<p>
+name<br>
+<input type="text" name="name" maxlength="{{nameMax}}" size="30" value="{{name}}" required>
+</p>
+<p>
+your site (optional)<br>
+<input type="text" name="url" maxlength="{{urlMax}}" size="30" value="{{url}}" placeholder="https://">
+</p>
+<p>
+message<br>
+<textarea name="message" rows="5" cols="44" maxlength="{{messageMax}}" required>{{message}}</textarea>
+</p>
+<div class="hp" aria-hidden="true"><label>leave empty <input type="text" name="email" tabindex="-1" autocomplete="off"></label></div>
+<div class="cf-turnstile" data-sitekey="{{siteKey}}" data-theme="dark"></div>
+<input type="submit" value="sign it">
+</form>
+
+<hr size="1" noshade>
+<p>{{count}} signatures</p>
+{{entries}}
+
+<hr size="1" noshade>
+<center>
+<a href="/"><img src="/_hub/badge.png" width="176" height="62" border="0" alt="unixcore.sh"></a>
+</center>
+
+</font>
+</td></tr>
+</table>
+</center>
+
+</body>
+</html>

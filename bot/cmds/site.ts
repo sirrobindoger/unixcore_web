@@ -3,7 +3,7 @@ import {
 	EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, TextChannel, userMention,
 } from "discord.js";
 import { menus, publishMenu, type DiscordCommand } from "../bot";
-import { Reserved, Sites } from "../db";
+import { Guestbook, Reserved, Sites } from "../db";
 import { SLUG_RE, allReserved } from "../slug";
 import * as sites from "../sites";
 
@@ -30,7 +30,13 @@ const Site: DiscordCommand = {
 				.addStringOption(o => o.setName("slug").setDescription("Name").setRequired(true)))
 			.addSubcommand(s => s.setName("remove").setDescription("Un-reserve a name added at runtime")
 				.addStringOption(o => o.setName("slug").setDescription("Name").setRequired(true)))
-			.addSubcommand(s => s.setName("list").setDescription("Show all reserved names"))),
+			.addSubcommand(s => s.setName("list").setDescription("Show all reserved names")))
+		.addSubcommandGroup(g => g.setName("guestbook").setDescription("Moderate the guestbook")
+			.addSubcommand(s => s.setName("list").setDescription("Show the latest guestbook entries with their ids"))
+			.addSubcommand(s => s.setName("delete").setDescription("Delete one guestbook entry")
+				.addIntegerOption(o => o.setName("id").setDescription("Entry id (shown as #id on the page)").setRequired(true).setMinValue(1)))
+			.addSubcommand(s => s.setName("purge").setDescription("Delete every entry posted from the same IP as one entry")
+				.addIntegerOption(o => o.setName("id").setDescription("Any entry id from the offender").setRequired(true).setMinValue(1)))),
 
 	execute: async i => {
 		const sub = i.options.getSubcommand();
@@ -48,6 +54,28 @@ const Site: DiscordCommand = {
 				return void i.reply({ content: ok ? `Un-reserved \`${slug}\`.` : `\`${slug}\` isn't a runtime reservation (names in reserved.txt are edited in the file).`, ...eph });
 			}
 			return void i.reply({ content: "Reserved: " + allReserved().map(s => `\`${s}\``).join(", "), ...eph });
+		}
+
+		if (group === "guestbook") {
+			if (sub === "list") {
+				const rows = Guestbook.recent(15);
+				const trim = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+				const lines = rows.map(r =>
+					`\`#${r.id}\` **${trim(r.name, 40)}** <t:${Math.floor(r.created_at / 1000)}:d> — ${trim(r.message.replace(/\s+/g, " "), 80)}`);
+				return void i.reply({
+					content: lines.length ? `${Guestbook.count()} total, newest first:\n${lines.join("\n")}` : "Guestbook is empty.",
+					...eph, allowedMentions: { parse: [] },
+				});
+			}
+			const id = i.options.getInteger("id", true);
+			const row = Guestbook.get(id);
+			if (!row) return void i.reply({ content: `No guestbook entry #${id}.`, ...eph });
+			if (sub === "delete") {
+				Guestbook.remove(id);
+				return void i.reply({ content: `🗑️ Deleted guestbook entry #${id} by **${row.name}**.`, ...eph, allowedMentions: { parse: [] } });
+			}
+			const n = Guestbook.removeByIpHash(row.ip_hash);
+			return void i.reply({ content: `🗑️ Purged ${n} entr${n === 1 ? "y" : "ies"} sharing #${id}'s IP.`, ...eph });
 		}
 
 		if (sub === "menu") {

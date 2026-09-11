@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import { config } from "./config";
 import { Menus } from "./db";
+import { startGuestbook } from "./guestbook";
 import { sftpgo } from "./sftpgo";
 import { SiteError, regenerateHub, setSiteCountListener } from "./sites";
 
@@ -103,6 +104,9 @@ Bot.once(Events.ClientReady, async client => {
 });
 
 Bot.on(Events.InteractionCreate, onInteraction);
+
+// The guestbook doesn't need Discord, so it comes up before we log in.
+startGuestbook();
 
 // SFTPGo usually comes up a beat after us under dev.sh.
 for (let i = 0; i < 30 && !(await sftpgo.healthy()); i++) await Bun.sleep(1000);

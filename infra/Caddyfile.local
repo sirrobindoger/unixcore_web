@@ -8,6 +8,10 @@
 	root * {$SITES_DIR}
 	encode gzip
 
+	# Guestbook: served by the bot process (bot/guestbook.ts) on localhost.
+	@guestbook path /guestbook /guestbook/
+	reverse_proxy @guestbook 127.0.0.1:8090
+
 	# never serve dotfiles (.DS_Store, .htaccess-alikes, etc.)
 	@dot path */.*
 	respond @dot 404

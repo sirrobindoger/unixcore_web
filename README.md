@@ -51,6 +51,24 @@ panel (up to 8 fixed spots, then it wraps). 88x31 buttons dropped into
 `bot/templates/hub/buttons/` line up under the badge. No restart needed beyond the next
 regenerate (any register/rename/suspend, or bot startup).
 
+## Guestbook
+
+`/guestbook` is the one dynamic page. `bot/guestbook.ts` runs a small HTTP
+server inside the bot process on `127.0.0.1:8090`; Caddy proxies just that path
+to it. Entries live in the `guestbook` table of the bot's SQLite DB. Spam
+control is a Cloudflare Turnstile widget (verified server-side), a hidden
+honeypot field, and a one-post-per-minute cooldown per IP (stored as a salted
+hash, never the raw address). Names, messages and links are HTML-escaped and
+links are limited to http(s).
+
+Set `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET` in `bot/.env` (Cloudflare
+dashboard → Turnstile → Add widget, hostname `unixcore.sh`). Unset, the bot
+falls back to Cloudflare's always-pass test keys and logs a warning, which is
+what you want locally and not what you want in production.
+
+Mods: `/site guestbook list` · `/site guestbook delete <id>` ·
+`/site guestbook purge <id>` (drops every entry from that entry's IP).
+
 ## VPS
 
 DigitalOcean droplet `45.55.222.209`, Ubuntu 24.04. ssh alias `unixcore`

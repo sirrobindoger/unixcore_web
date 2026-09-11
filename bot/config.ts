@@ -35,4 +35,17 @@ export const config = {
 	suspendedDir: abs(opt("SUSPENDED_DIR", "suspended")),
 	trashDir: abs(opt("TRASH_DIR", "trash")),
 	dbPath: abs(opt("DB_PATH", "data/unixcore.db")),
+
+	// Guestbook HTTP server (Caddy proxies /guestbook to it). Without real
+	// Turnstile keys we fall back to Cloudflare's documented always-pass test
+	// pair so local dev works; guestbook.ts logs a warning in that case.
+	guestbook: {
+		host: opt("GUESTBOOK_HOST", "127.0.0.1"),
+		port: Number(opt("GUESTBOOK_PORT", "8090")),
+		turnstileSiteKey: opt("TURNSTILE_SITE_KEY", "1x00000000000000000000AA"),
+		turnstileSecret: opt("TURNSTILE_SECRET", "1x0000000000000000000000000000000AA"),
+		usingTestKeys: !process.env.TURNSTILE_SITE_KEY || !process.env.TURNSTILE_SECRET,
+		// Salts the stored IP hash. Change it and old hashes stop matching new posts.
+		ipSalt: opt("GUESTBOOK_IP_SALT", "unixcore"),
+	},
 };
