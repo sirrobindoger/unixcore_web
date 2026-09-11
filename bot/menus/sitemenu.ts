@@ -25,10 +25,10 @@ async function dashboard(user: User): Promise<BaseMessageOptions> {
 	if (!s) {
 		const embed = new EmbedBuilder()
 			.setColor(0x5865f2)
-			.setTitle("You don't have a site yet")
+			.setTitle("You don't have a site yet!!!!")
 			.setDescription(
-				`Register to get **${host}/<name>/** — ${quotaMb} MB for HTML, CSS, JS and images.\n\n` +
-				`Your Discord handle is the default name; you can pick anything that fits: ${SLUG_RULES}.`,
+				`Register to get **${host}/<name>/**!! (${quotaMb} MB of storage)\n\n` +
+				`Your Discord handle is the default name but u can like change it if u want.`,
 			);
 		return { embeds: [embed], components: [row(btn("uc:register", "Register site", ButtonStyle.Success, "✨"))] };
 	}
@@ -40,7 +40,7 @@ async function dashboard(user: User): Promise<BaseMessageOptions> {
 		.setURL(url)
 		.addFields(
 			{ name: "Site", value: url },
-			{ name: "SFTP", value: `host \`${config.sftpHost}\` · port \`${config.sftpPort}\` · user \`${s.slug}\`\n[web file manager](${config.webClientUrl}) (same login)` },
+			{ name: "SFTP", value: `FileZilla/WinSCP host: \`sftp://${s.slug}@${config.sftpHost}:${config.sftpPort}\`\n(host \`${config.sftpHost}\` · port \`${config.sftpPort}\` · user \`${s.slug}\`)\n[web file manager](${config.webClientUrl}) (if you really wanna)` },
 			{ name: "Storage", value: `\`${sites.usageBar(s.usedBytes, s.quotaBytes)}\` ${sites.fmtBytes(s.usedBytes)} / ${quotaMb} MB · ${s.usedFiles} files` },
 		);
 	if (s.status === "suspended") {
@@ -74,7 +74,7 @@ const textInput = (id: string, label: string, opts: { value?: string; min?: numb
 const slugInput = (value?: string) =>
 	textInput("slug", `Site name — ${host}/<name>/`, { value, min: 1, max: 32, description: SLUG_RULES });
 const passwordInput = (label = "SFTP password") =>
-	textInput("password", label, { min: 8, max: 128, description: "8+ characters. This is what you type into WinSCP/FileZilla/the web file manager." });
+	textInput("password", label, { min: 8, max: 128, description: "8+ characters. Password!! Yay!" });
 
 const modals = {
 	register: (user: User) => new ModalBuilder().setCustomId("uc:m:register").setTitle("Register your site")
@@ -98,10 +98,10 @@ const SiteMenu: DiscordMenu = {
 		embeds: [
 			new EmbedBuilder()
 				.setColor(0x5865f2)
-				.setTitle("unixcore.sh — your own little website")
+				.setTitle("unixcore.sh")
 				.setDescription(
-					`Everyone here can have a page at **${host}/<name>/**.\n` +
-					`${quotaMb} MB of static files (HTML, CSS, JS, images), uploaded over SFTP or the web file manager.\n\n` +
+					`You can make your own website at **${host}/<name>/**!!!\n` +
+					`${quotaMb} MB of static files (HTML, CSS, JS, images), uploaded over SFTP or the web file manager.\nDont know what that is? Just ask someone!\n` +
 					"Hit **Open menu** to register, change your password or name, or check your storage.",
 				),
 		],
