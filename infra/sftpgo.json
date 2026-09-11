@@ -1,0 +1,42 @@
+{
+  "common": {
+    "idle_timeout": 15,
+    "defender": {
+      "enabled": true,
+      "driver": "memory",
+      "ban_time": 15,
+      "threshold": 10,
+      "score_invalid": 2,
+      "score_valid": 1,
+      "score_limit_exceeded": 3,
+      "observation_time": 30
+    }
+  },
+  "data_provider": {
+    "driver": "sqlite",
+    "name": "sftpgo.db",
+    "track_quota": 1,
+    "create_default_admin": true,
+    "naming_rules": 1
+  },
+  "sftpd": {
+    "bindings": [{ "port": 2022, "address": "" }],
+    "max_auth_tries": 5,
+    "enabled_ssh_commands": [],
+    "password_authentication": true
+  },
+  "ftpd": { "bindings": [{ "port": 0 }] },
+  "webdavd": { "bindings": [{ "port": 0 }] },
+  "httpd": {
+    "bindings": [
+      {
+        "port": 8080,
+        "address": "127.0.0.1",
+        "enable_web_admin": true,
+        "enable_web_client": true,
+        "enable_rest_api": true
+      }
+    ]
+  },
+  "telemetry": { "bind_port": 0 }
+}

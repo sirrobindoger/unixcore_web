@@ -1,0 +1,36 @@
+import assert from "node:assert";
+import path from "node:path";
+
+// Repo root (bot/ lives one level down)
+export const ROOT = path.resolve(import.meta.dir, "..");
+
+const req = (name: string): string => {
+	const v = process.env[name];
+	assert(v, `${name} not set — see bot/.env.example`);
+	return v;
+};
+const opt = (name: string, def: string): string => process.env[name] || def;
+const abs = (p: string) => path.resolve(ROOT, p);
+
+export const config = {
+	token: req("TOKEN"),
+	guildId: req("GUILD_ID"),
+
+	sftpgo: {
+		url: opt("SFTPGO_URL", "http://127.0.0.1:8080").replace(/\/$/, ""),
+		admin: req("SFTPGO_ADMIN_USERNAME"),
+		password: req("SFTPGO_ADMIN_PASSWORD"),
+	},
+
+	publicUrl: opt("PUBLIC_URL", "http://localhost:8000").replace(/\/$/, ""),
+	sftpHost: opt("SFTP_HOST", "localhost"),
+	sftpPort: Number(opt("SFTP_PORT", "2022")),
+	webClientUrl: opt("WEBCLIENT_URL", "http://localhost:8080/web/client"),
+
+	quotaBytes: Number(opt("QUOTA_MB", "25")) * 1024 * 1024,
+
+	sitesDir: abs(opt("SITES_DIR", "sites")),
+	suspendedDir: abs(opt("SUSPENDED_DIR", "suspended")),
+	trashDir: abs(opt("TRASH_DIR", "trash")),
+	dbPath: abs(opt("DB_PATH", "data/unixcore.db")),
+};
