@@ -3,7 +3,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
-import { Sites, type SiteRow } from "./db";
+import { Guestbook, Sites, type SiteRow } from "./db";
 import { sftpgo } from "./sftpgo";
 import { validatePassword, validateSlug } from "./slug";
 
@@ -43,9 +43,14 @@ export async function regenerateHub() {
 	// hub/bg/ is scattered behind the panel; hub/buttons/ is a row of buttons (usually 88x31) under the badge
 	const decor = (await imagesIn("bg")).map(f => `\t<img src="/_hub/bg/${f}" alt="">`).join("\n");
 	const buttons = (await imagesIn("buttons")).map(f => `<img src="/_hub/buttons/${f}" alt="">`).join("\n");
+	const guestbookCount = Guestbook.count();
 	await fs.writeFile(
 		path.join(config.sitesDir, "index.html"),
-		render(hubTpl, { count: rows.length, sites, decor, buttons, generated: new Date().toISOString() }),
+		render(hubTpl, {
+			count: rows.length, sites, decor, buttons,
+			guestbookCount, guestbookPlural: guestbookCount === 1 ? "" : "s",
+			generated: new Date().toISOString(),
+		}),
 	);
 }
 

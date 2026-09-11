@@ -72,9 +72,11 @@ const Site: DiscordCommand = {
 			if (!row) return void i.reply({ content: `No guestbook entry #${id}.`, ...eph });
 			if (sub === "delete") {
 				Guestbook.remove(id);
+				await sites.regenerateHub();
 				return void i.reply({ content: `🗑️ Deleted guestbook entry #${id} by **${row.name}**.`, ...eph, allowedMentions: { parse: [] } });
 			}
 			const n = Guestbook.removeByIpHash(row.ip_hash);
+			await sites.regenerateHub();
 			return void i.reply({ content: `🗑️ Purged ${n} entr${n === 1 ? "y" : "ies"} sharing #${id}'s IP.`, ...eph });
 		}
 
