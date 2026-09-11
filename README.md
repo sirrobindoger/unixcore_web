@@ -75,7 +75,12 @@ exposed: `ssh -L 8080:127.0.0.1:8080 unixcore` then http://localhost:8080/web/ad
 can't go through the proxy and Let's Encrypt's HTTP challenge needs port 80 to
 reach the box directly.
 
-**Changing the domain** (beta.unixcore.sh → unixcore.sh): edit the hostname
-block at the bottom of `infra/Caddyfile` (`unixcore.sh, beta.unixcore.sh {`),
+**Domain:** live on unixcore.sh (plus www and the beta alias) since 2026-09-11.
+To change it, edit the hostname block at the bottom of `infra/Caddyfile`,
 update `PUBLIC_URL`, `SFTP_HOST`, `WEBCLIENT_URL` in the server's `bot/.env`,
 run `scripts/deploy.sh`.
+
+**Heart-rate API:** milk's pages call `/api/heartbeat`, which Caddy proxies to
+the Express server still running on box.sprojects.org:2096. Caddy also listens
+on `unixcore.sh:2096` and passes it through, so the Android app that uploads
+readings to that port keeps working unchanged.
