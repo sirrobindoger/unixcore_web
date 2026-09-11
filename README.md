@@ -42,6 +42,15 @@ Then in Discord: `/site menu` in the channel where the menu should live.
 
 Baseline reserved names live in `bot/reserved.txt`.
 
+## Hub page
+
+`bot/templates/hub.html` is the front page at `/`. Static bits live in
+`bot/templates/hub/` and get copied to `sites/_hub/` on every regenerate.
+Drop PNGs/GIFs into `bot/templates/hub/bg/` and they're scattered behind the
+panel (up to 8 fixed spots, then it wraps). 88x31 buttons dropped into
+`bot/templates/hub/buttons/` line up under the badge. No restart needed beyond the next
+regenerate (any register/rename/suspend, or bot startup).
+
 ## VPS
 
 Same three processes on Ubuntu: SFTPGo from its apt repo listening on :22

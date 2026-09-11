@@ -22,14 +22,25 @@ const hubTpl = await fs.readFile(path.join(tplDir, "hub.html"), "utf8");
 
 export const siteUrl = (slug: string) => `${config.publicUrl}/${slug}/`;
 
+// Static bits for the hub page. Copied to <sites>/_hub/ (an underscore can't be
+// a slug, so no user can claim it). Anything in hub/bg/ is scattered behind the panel.
+const hubAssets = path.join(tplDir, "hub");
+const IMG_RE = /\.(png|gif|jpe?g)$/i;
+
 /** Rewrites <sites>/index.html listing every active site. */
 export async function regenerateHub() {
 	const rows = Sites.all().filter(r => r.status === "active");
-	const sites = rows.map(r => `\t\t<li><a href="/${r.slug}/">${r.slug}</a></li>`).join("\n");
+	const sites = rows.map(r => `\t<li><a href="/${r.slug}/">${r.slug}</a></li>`).join("\n");
 	await fs.mkdir(config.sitesDir, { recursive: true });
+	await fs.cp(hubAssets, path.join(config.sitesDir, "_hub"), { recursive: true });
+	const imagesIn = async (sub: string) =>
+		(await fs.readdir(path.join(hubAssets, sub)).catch(() => [] as string[])).filter(f => IMG_RE.test(f)).sort();
+	// hub/bg/ is scattered behind the panel; hub/buttons/ is a row of buttons (usually 88x31) under the badge
+	const decor = (await imagesIn("bg")).map(f => `\t<img src="/_hub/bg/${f}" alt="">`).join("\n");
+	const buttons = (await imagesIn("buttons")).map(f => `<img src="/_hub/buttons/${f}" alt="">`).join("\n");
 	await fs.writeFile(
 		path.join(config.sitesDir, "index.html"),
-		render(hubTpl, { count: rows.length, sites, generated: new Date().toISOString() }),
+		render(hubTpl, { count: rows.length, sites, decor, buttons, generated: new Date().toISOString() }),
 	);
 }
 
