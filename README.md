@@ -13,7 +13,7 @@ sites/   one directory per site (served by Caddy, jailed per user by SFTPGo)
 How the pieces fit:
 
 - **SFTPGo** owns logins and quotas. Users are *virtual* — no Linux accounts —
-  each jailed to `sites/<slug>` with a 25 MB byte quota. Its web client doubles
+  each jailed to `sites/<slug>` with a 100 MB byte quota. Its web client doubles
   as a drag-and-drop uploader.
 - **Caddy** serves `sites/` as static files. Nothing user-uploaded is ever executed.
 - **The bot** maps Discord user ID → slug in SQLite and drives SFTPGo's REST

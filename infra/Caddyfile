@@ -12,6 +12,17 @@
 	@sftpgo path /web/client* /api/v2/user* /static/*
 	reverse_proxy @sftpgo 127.0.0.1:8080
 
+	# Milk's heart-rate API still runs on the old box (box.sprojects.org:2096, an
+	# Express server behind a Cloudflare Origin cert that browsers do not trust).
+	# Proxy it here so pages can call /api/heartbeat same-origin, and so the
+	# endpoint keeps working once unixcore.sh moves to this VPS.
+	@heartbeat path /api/heartbeat* /api/healthcheck* /api/healtherror*
+	reverse_proxy @heartbeat https://box.sprojects.org:2096 {
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+
 	# never serve dotfiles (.DS_Store, .htaccess-alikes, etc.)
 	@dot path */.*
 	respond @dot 404

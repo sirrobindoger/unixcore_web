@@ -16,6 +16,8 @@ const btn = (id: string, label: string, style = ButtonStyle.Secondary, emoji?: s
 	const b = new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(style);
 	return emoji ? b.setEmoji(emoji) : b;
 };
+const link = (url: string, label: string, emoji: string) =>
+	new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel(label).setEmoji(emoji);
 const row = (...buttons: ButtonBuilder[]) => new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons);
 
 // ---- dashboard -------------------------------------------------------------
@@ -105,7 +107,11 @@ const SiteMenu: DiscordMenu = {
 					"Hit **Open menu** to register, change your password or name, or check your storage.",
 				),
 		],
-		components: [row(btn("uc:open", "Open menu", ButtonStyle.Primary, "🌐"))],
+		components: [row(
+			btn("uc:open", "Open menu", ButtonStyle.Primary, "📋"),
+			link(config.publicUrl, "Open website", "🌐"),
+			link(config.webClientUrl, "Open web panel", "🔧"),
+		)],
 	}),
 
 	handlers: {
