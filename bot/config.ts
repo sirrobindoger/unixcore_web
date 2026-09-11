@@ -15,6 +15,8 @@ const abs = (p: string) => path.resolve(ROOT, p);
 export const config = {
 	token: req("TOKEN"),
 	guildId: req("GUILD_ID"),
+	// Optional: channel to auto-post the site menu into on startup (same as running /site menu there).
+	siteChannel: opt("SITE_CHANNEL", ""),
 
 	sftpgo: {
 		url: opt("SFTPGO_URL", "http://127.0.0.1:8080").replace(/\/$/, ""),

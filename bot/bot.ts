@@ -82,12 +82,16 @@ Bot.once(Events.ClientReady, async client => {
 	await guild.commands.set([...commands.values()].map(c => c.data.toJSON()));
 	console.log(`Registered commands: ${[...commands.keys()].join(", ")}`);
 
-	// Refresh any menus we've already posted so button labels/embeds pick up code changes.
+	// Post menus into SITE_CHANNEL if configured, and refresh any already posted
+	// so button labels/embeds pick up code changes.
 	for (const menu of menus.values()) {
-		const saved = Menus.get(menu.name);
-		if (!saved) continue;
-		const ch = await client.channels.fetch(saved.channel_id).catch(() => null);
-		if (ch instanceof TextChannel) await publishMenu(menu, ch);
+		const channelId = Menus.get(menu.name)?.channel_id || config.siteChannel;
+		if (!channelId) continue;
+		const ch = await client.channels.fetch(channelId).catch(() => null);
+		if (ch instanceof TextChannel) {
+			const msg = await publishMenu(menu, ch);
+			console.log(`Menu "${menu.name}" live in #${ch.name} (${msg.id})`);
+		} else console.warn(`Menu "${menu.name}": channel ${channelId} not found or not a text channel`);
 	}
 
 	await regenerateHub();
