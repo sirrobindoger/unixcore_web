@@ -53,3 +53,5 @@ uploads
 user
 users
 www
+web
+healthz

@@ -53,8 +53,29 @@ regenerate (any register/rename/suspend, or bot startup).
 
 ## VPS
 
-Same three processes on Ubuntu: SFTPGo from its apt repo listening on :22
-(move admin `sshd` to another port), Caddy with the site block under
-`unixcore.sh {`, the bot as a systemd unit running as the `sftpgo` user so it
-can write `sites/`. `PUBLIC_URL`, `SFTP_HOST`, `SFTP_PORT`, `WEBCLIENT_URL` in
-`.env` are the only bot-side changes.
+DigitalOcean droplet `45.55.222.209`, Ubuntu 24.04. ssh alias `unixcore`
+(root, port **2222** — SFTPGo owns port 22).
+
+- `scripts/vps-setup.sh` — one-time provisioning (swap, sshd → 2222, Caddy,
+  SFTPGo, Bun). Already applied.
+- `scripts/deploy.sh` — rsync the repo to `/srv/unixcore`, install the configs
+  from `infra/`, restart services. Run after every change.
+- Secrets live only on the server: `/srv/unixcore/bot/.env` and
+  `/etc/sftpgo/sftpgo.env` (same SFTPGo admin password in both).
+
+On the box: repo at `/srv/unixcore` (owned by `sftpgo`, the bot runs as that
+user), SFTPGo DB at `/var/lib/sftpgo/sftpgo.db`, units `sftpgo`, `caddy`,
+`unixcore-bot`. Logs: `journalctl -u unixcore-bot -f`.
+
+Caddy serves `sites/` on 80/443 with Let's Encrypt and proxies only the SFTPGo
+web client (`/web/client`, `/api/v2/user`, `/static`). The admin UI is not
+exposed: `ssh -L 8080:127.0.0.1:8080 unixcore` then http://localhost:8080/web/admin.
+
+**DNS:** the A record must be DNS-only (grey cloud) in Cloudflare — SFTP on 22
+can't go through the proxy and Let's Encrypt's HTTP challenge needs port 80 to
+reach the box directly.
+
+**Changing the domain** (beta.unixcore.sh → unixcore.sh): edit the hostname
+block at the bottom of `infra/Caddyfile` (`unixcore.sh, beta.unixcore.sh {`),
+update `PUBLIC_URL`, `SFTP_HOST`, `WEBCLIENT_URL` in the server's `bot/.env`,
+run `scripts/deploy.sh`.

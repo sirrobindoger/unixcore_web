@@ -1,0 +1,21 @@
+[Unit]
+Description=unixcore.sh Discord bot
+After=network-online.target sftpgo.service
+Wants=network-online.target
+
+[Service]
+User=sftpgo
+Group=sftpgo
+WorkingDirectory=/srv/unixcore/bot
+# bun loads bot/.env from the working directory itself
+ExecStart=/usr/local/bin/bun run bot.ts
+Restart=always
+RestartSec=5
+Environment=HOME=/var/lib/sftpgo
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/srv/unixcore
+
+[Install]
+WantedBy=multi-user.target

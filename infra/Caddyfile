@@ -1,0 +1,29 @@
+# Production Caddyfile — installed to /etc/caddy/Caddyfile by scripts/deploy.sh.
+# Only the hostname block at the bottom changes when the site moves from
+# beta.unixcore.sh to unixcore.sh (make it `unixcore.sh, beta.unixcore.sh {`).
+# The admin API stays on its default localhost:2019 so `systemctl reload caddy` works.
+(unixcore) {
+	root * /srv/unixcore/sites
+	encode gzip
+
+	# SFTPGo's browser file manager and the API it calls. The admin UI is not
+	# exposed; reach it with `ssh -L 8080:127.0.0.1:8080 unixcore` then
+	# http://localhost:8080/web/admin
+	@sftpgo path /web/client* /api/v2/user* /static/*
+	reverse_proxy @sftpgo 127.0.0.1:8080
+
+	# never serve dotfiles (.DS_Store, .htaccess-alikes, etc.)
+	@dot path */.*
+	respond @dot 404
+
+	header {
+		X-Content-Type-Options nosniff
+		-Server
+	}
+
+	file_server
+}
+
+beta.unixcore.sh {
+	import unixcore
+}

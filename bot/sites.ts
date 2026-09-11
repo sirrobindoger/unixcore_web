@@ -27,9 +27,14 @@ export const siteUrl = (slug: string) => `${config.publicUrl}/${slug}/`;
 const hubAssets = path.join(tplDir, "hub");
 const IMG_RE = /\.(png|gif|jpe?g)$/i;
 
+/** Called with the active-site count after every hub regenerate (bot.ts uses it for the presence). */
+export let onSiteCount: (count: number) => void = () => {};
+export const setSiteCountListener = (fn: typeof onSiteCount) => { onSiteCount = fn; };
+
 /** Rewrites <sites>/index.html listing every active site. */
 export async function regenerateHub() {
 	const rows = Sites.all().filter(r => r.status === "active");
+	onSiteCount(rows.length);
 	const sites = rows.map(r => `\t<li><a href="/${r.slug}/">${r.slug}</a></li>`).join("\n");
 	await fs.mkdir(config.sitesDir, { recursive: true });
 	await fs.cp(hubAssets, path.join(config.sitesDir, "_hub"), { recursive: true });

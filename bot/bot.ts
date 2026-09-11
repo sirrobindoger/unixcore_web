@@ -2,14 +2,14 @@
 // menus/*.ts export a DiscordMenu (a persistent message + button/modal handlers).
 import fs from "node:fs";
 import {
-	ChatInputCommandInteraction, Client, Events, GatewayIntentBits, type Interaction,
+	ActivityType, ChatInputCommandInteraction, Client, Events, GatewayIntentBits, type Interaction,
 	MessageFlags, type ButtonInteraction, type ModalSubmitInteraction, type SlashCommandOptionsOnlyBuilder,
 	type SlashCommandSubcommandsOnlyBuilder, type BaseMessageOptions, TextChannel,
 } from "discord.js";
 import { config } from "./config";
 import { Menus } from "./db";
 import { sftpgo } from "./sftpgo";
-import { SiteError, regenerateHub } from "./sites";
+import { SiteError, regenerateHub, setSiteCountListener } from "./sites";
 
 export type DiscordCommand = {
 	data: SlashCommandOptionsOnlyBuilder | SlashCommandSubcommandsOnlyBuilder;
@@ -81,6 +81,11 @@ Bot.once(Events.ClientReady, async client => {
 	const guild = await client.guilds.fetch(config.guildId);
 	await guild.commands.set([...commands.values()].map(c => c.data.toJSON()));
 	console.log(`Registered commands: ${[...commands.keys()].join(", ")}`);
+
+	// Presence: "Hosting N sites", refreshed whenever the hub is regenerated.
+	setSiteCountListener(n =>
+		client.user.setActivity({ type: ActivityType.Custom, name: "status", state: `Hosting ${n} site${n === 1 ? "" : "s"}` }),
+	);
 
 	// Post menus into SITE_CHANNEL if configured, and refresh any already posted
 	// so button labels/embeds pick up code changes.
