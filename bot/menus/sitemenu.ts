@@ -2,7 +2,7 @@
 // modals for register / password / slug, and a confirm step for delete.
 import {
 	ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, LabelBuilder, MessageFlags,
-	ModalBuilder, TextInputBuilder, TextInputStyle, type User, type ButtonInteraction,
+	ModalBuilder, TextInputBuilder, TextInputStyle, escapeMarkdown, type User, type ButtonInteraction,
 	type ModalSubmitInteraction, type BaseMessageOptions,
 } from "discord.js";
 import type { ComponentInteraction, DiscordMenu } from "../bot";
@@ -43,9 +43,10 @@ async function dashboard(user: User): Promise<BaseMessageOptions> {
 		.addFields(
 			{ name: "Site", value: url },
 			{ name: "SFTP", value: `FileZilla/WinSCP host: \`sftp://${s.slug}@${config.sftpHost}:${config.sftpPort}\`\n(host \`${config.sftpHost}\` · port \`${config.sftpPort}\` · user \`${s.slug}\`)\n[web file manager](${config.webClientUrl}) (if you really wanna)` +
-				(s.publicKeys.length ? `\n🗝️ ${s.publicKeys.length} SSH key${s.publicKeys.length === 1 ? "" : "s"} set, so no password needed from those machines` : "") },
+				(s.publicKeys.length ? `\n${s.publicKeys.length} SSH key${s.publicKeys.length === 1 ? "" : "s"} set, so no password needed from those machines` : "") },
 			{ name: "Storage", value: `\`${sites.usageBar(s.usedBytes, s.quotaBytes)}\` ${sites.fmtBytes(s.usedBytes)} / ${quotaMb} MB · ${s.usedFiles} files` },
 		);
+	if (s.tagline) embed.addFields({ name: "Directory tagline", value: escapeMarkdown(s.tagline) });
 	if (s.status === "suspended") {
 		embed.addFields({ name: "⛔ Suspended", value: s.suspended_reason || "Contact a mod." });
 		return { embeds: [embed], components: [row(btn("uc:refresh", "Refresh", ButtonStyle.Secondary, "🔄"))] };
@@ -59,7 +60,7 @@ async function dashboard(user: User): Promise<BaseMessageOptions> {
 				btn("uc:slug", "Change name", ButtonStyle.Secondary, "✏️"),
 				btn("uc:refresh", "Refresh", ButtonStyle.Secondary, "🔄"),
 			),
-			row(btn("uc:delete", "Delete site", ButtonStyle.Danger, "🗑️")),
+			row(btn("uc:tagline", "Directory tagline"), btn("uc:delete", "Delete site", ButtonStyle.Danger, "🗑️")),
 		],
 	};
 }
@@ -90,6 +91,14 @@ const keysInput = (current: string[]) => {
 		.setDescription(`Paste your .pub file, one key per line (max ${sites.MAX_KEYS}). Leave empty to remove them.`);
 };
 
+const taglineInput = (current: string | null) => {
+	const input = new TextInputBuilder().setCustomId("tagline").setStyle(TextInputStyle.Short).setRequired(false)
+		.setMaxLength(sites.TAGLINE_MAX).setPlaceholder("my little corner of the web");
+	if (current) input.setValue(current);
+	return new LabelBuilder().setLabel("Tagline").setTextInputComponent(input)
+		.setDescription("One line shown next to your site in the directory. Leave empty to remove it.");
+};
+
 const modals = {
 	register: (user: User) => new ModalBuilder().setCustomId("uc:m:register").setTitle("Register your site")
 		.addLabelComponents(slugInput(slugFromHandle(user.username)), passwordInput()),
@@ -97,6 +106,8 @@ const modals = {
 		.addLabelComponents(passwordInput("New SFTP password")),
 	keys: (current: string[]) => new ModalBuilder().setCustomId("uc:m:keys").setTitle("SSH key login")
 		.addLabelComponents(keysInput(current)),
+	tagline: (current: string | null) => new ModalBuilder().setCustomId("uc:m:tagline").setTitle("Directory tagline")
+		.addLabelComponents(taglineInput(current)),
 	slug: (current: string) => new ModalBuilder().setCustomId("uc:m:slug").setTitle("Change site name")
 		.addLabelComponents(slugInput(current), passwordInput("SFTP password (re-enter or pick a new one)")),
 };
@@ -109,6 +120,7 @@ const field = (i: ModalSubmitInteraction, id: string) => i.fields.getTextInputVa
 
 const SiteMenu: DiscordMenu = {
 	name: "sitemenu",
+	defaultChannel: config.siteChannel,
 
 	build: () => ({
 		embeds: [
@@ -156,8 +168,19 @@ const SiteMenu: DiscordMenu = {
 			await m.deferReply({ flags: MessageFlags.Ephemeral });
 			const site = await sites.setPublicKeys(i.user.id, field(m, "keys"));
 			const content = site.keyCount
-				? `🗝️ Saved ${site.keyCount} key${site.keyCount === 1 ? "" : "s"} for **${site.slug}**. \`sftp -P ${config.sftpPort} ${site.slug}@${config.sftpHost}\` now logs in without a password (the password still works too).`
-				: `🗝️ Removed all SSH keys from **${site.slug}**; it's password only again.`;
+				? `Saved ${site.keyCount} key${site.keyCount === 1 ? "" : "s"} for **${site.slug}**. \`sftp -P ${config.sftpPort} ${site.slug}@${config.sftpHost}\` now logs in without a password (the password still works too).`
+				: `Removed all SSH keys from **${site.slug}**; it's password only again.`;
+			await m.editReply({ content, ...await dashboard(i.user) });
+		},
+
+		"uc:tagline": async i => {
+			await asButton(i).showModal(modals.tagline((await sites.info(i.user.id))?.tagline ?? null));
+		},
+		"uc:m:tagline": async i => {
+			const m = asModal(i);
+			await m.deferReply({ flags: MessageFlags.Ephemeral });
+			const site = await sites.setTagline(i.user.id, field(m, "tagline"));
+			const content = site.tagline ? `Tagline saved for **${site.slug}**.` : `Tagline removed from **${site.slug}**.`;
 			await m.editReply({ content, ...await dashboard(i.user) });
 		},
 

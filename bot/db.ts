@@ -24,6 +24,10 @@ db.exec(`
 		channel_id TEXT NOT NULL,
 		message_id TEXT NOT NULL
 	);
+	CREATE TABLE IF NOT EXISTS featured (
+		day        TEXT PRIMARY KEY, -- YYYY-MM-DD, UTC
+		discord_id TEXT NOT NULL
+	);
 	CREATE TABLE IF NOT EXISTS guestbook (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		name       TEXT NOT NULL,
@@ -33,6 +37,9 @@ db.exec(`
 		created_at INTEGER NOT NULL
 	);
 `);
+// Columns added after launch.
+const siteCols = db.query<{ name: string }, []>("PRAGMA table_info(sites)").all().map(c => c.name);
+if (!siteCols.includes("tagline")) db.exec("ALTER TABLE sites ADD COLUMN tagline TEXT");
 
 export type SiteStatus = "active" | "suspended";
 export type SiteRow = {
@@ -41,6 +48,8 @@ export type SiteRow = {
 	status: SiteStatus;
 	suspended_reason: string | null;
 	created_at: number;
+	/** One-liner shown in the Discord directory. */
+	tagline: string | null;
 };
 
 export const Sites = {
@@ -58,8 +67,22 @@ export const Sites = {
 	setStatus: (discordId: string, status: SiteStatus, reason: string | null = null) =>
 		db.query("UPDATE sites SET status = ?, suspended_reason = ? WHERE discord_id = ?")
 			.run(status, reason, discordId),
+	setTagline: (discordId: string, tagline: string | null) =>
+		db.query("UPDATE sites SET tagline = ? WHERE discord_id = ?").run(tagline, discordId),
 	remove: (discordId: string) =>
 		db.query("DELETE FROM sites WHERE discord_id = ?").run(discordId),
+};
+
+/** Site of the day, one row per UTC date. Keyed by Discord ID so renames carry over. */
+export const Featured = {
+	get: (day: string) =>
+		db.query<{ discord_id: string }, [string]>("SELECT discord_id FROM featured WHERE day = ?").get(day)?.discord_id,
+	set: (day: string, discordId: string) =>
+		db.query("INSERT OR REPLACE INTO featured (day, discord_id) VALUES (?, ?)").run(day, discordId),
+	/** Who was featured on the `n` days before `day`. */
+	before: (day: string, n: number) =>
+		db.query<{ discord_id: string }, [string, number]>("SELECT discord_id FROM featured WHERE day < ? ORDER BY day DESC LIMIT ?")
+			.all(day, n).map(r => r.discord_id),
 };
 
 export const Reserved = {

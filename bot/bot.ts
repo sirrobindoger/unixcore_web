@@ -3,27 +3,35 @@
 import fs from "node:fs";
 import {
 	ActivityType, ChatInputCommandInteraction, Client, Events, GatewayIntentBits, type Interaction,
-	MessageFlags, type ButtonInteraction, type ModalSubmitInteraction, type SlashCommandOptionsOnlyBuilder,
+	MessageFlags, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction,
+	type SlashCommandOptionsOnlyBuilder,
 	type SlashCommandSubcommandsOnlyBuilder, type BaseMessageOptions, TextChannel,
 } from "discord.js";
 import { config } from "./config";
 import { Menus } from "./db";
 import { startGuestbook } from "./guestbook";
 import { sftpgo } from "./sftpgo";
-import { SiteError, regenerateHub, setSiteCountListener } from "./sites";
+import { SiteError, onSiteCount, regenerateHub } from "./sites";
 
 export type DiscordCommand = {
 	data: SlashCommandOptionsOnlyBuilder | SlashCommandSubcommandsOnlyBuilder;
 	execute: (i: ChatInputCommandInteraction) => Promise<void>;
 };
 
-export type ComponentInteraction = ButtonInteraction | ModalSubmitInteraction;
+export type ComponentInteraction = ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction;
 export type DiscordMenu = {
 	name: string;
-	/** The persistent message posted with `/site menu`. */
-	build: () => BaseMessageOptions;
-	/** customId → handler, for buttons and modal submits. */
-	handlers: Record<string, (i: ComponentInteraction) => Promise<void>>;
+	/** Where to post on startup if it hasn't been posted anywhere yet. */
+	defaultChannel?: string;
+	/** The persistent message posted with `/site menu` or `/site directory`. */
+	build: () => BaseMessageOptions | Promise<BaseMessageOptions>;
+	/**
+	 * customId → handler, for buttons, selects and modal submits. A customId of
+	 * "key|arg" goes to the "key" handler with `arg` (for things like page numbers).
+	 */
+	handlers: Record<string, (i: ComponentInteraction, arg?: string) => Promise<void>>;
+	/** Called once logged in, with a function that re-renders the posted message. */
+	onReady?: (refresh: () => Promise<void>) => void;
 };
 
 const commands = new Map<string, DiscordCommand>();
@@ -36,18 +44,25 @@ async function loadDir<T>(dir: string): Promise<T[]> {
 	return Promise.all(files.map(async f => (await import(`${dir}/${f}`)).default as T));
 }
 
+// menu name → last payload sent, so refreshes that change nothing skip the edit
+const lastPosted = new Map<string, string>();
+
 /** Post (or refresh) a menu's persistent message in a channel. */
 export async function publishMenu(menu: DiscordMenu, channel: TextChannel) {
+	const payload = await menu.build();
+	const json = JSON.stringify(payload);
 	const saved = Menus.get(menu.name);
 	if (saved && saved.channel_id === channel.id) {
 		const msg = await channel.messages.fetch(saved.message_id).catch(() => null);
 		if (msg) {
-			await msg.edit(menu.build());
+			if (lastPosted.get(menu.name) !== json) await msg.edit(payload);
+			lastPosted.set(menu.name, json);
 			return msg;
 		}
 	}
-	const msg = await channel.send(menu.build());
+	const msg = await channel.send(payload);
 	Menus.set(menu.name, channel.id, msg.id);
+	lastPosted.set(menu.name, json);
 	return msg;
 }
 
@@ -55,10 +70,11 @@ async function onInteraction(interaction: Interaction) {
 	try {
 		if (interaction.isChatInputCommand()) {
 			await commands.get(interaction.commandName)?.execute(interaction);
-		} else if (interaction.isButton() || interaction.isModalSubmit()) {
+		} else if (interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) {
+			const [key, ...rest] = interaction.customId.split("|");
 			for (const menu of menus.values()) {
-				const h = menu.handlers[interaction.customId];
-				if (h) return await h(interaction);
+				const h = menu.handlers[key!];
+				if (h) return await h(interaction, rest.length ? rest.join("|") : undefined);
 			}
 		}
 	} catch (e) {
@@ -84,14 +100,19 @@ Bot.once(Events.ClientReady, async client => {
 	console.log(`Registered commands: ${[...commands.keys()].join(", ")}`);
 
 	// Presence: "Hosting N sites", refreshed whenever the hub is regenerated.
-	setSiteCountListener(n =>
+	onSiteCount(n =>
 		client.user.setActivity({ type: ActivityType.Custom, name: "status", state: `Hosting ${n} site${n === 1 ? "" : "s"}` }),
 	);
 
-	// Post menus into SITE_CHANNEL if configured, and refresh any already posted
-	// so button labels/embeds pick up code changes.
+	// Post menus into their default channel if configured, and refresh any
+	// already posted so button labels/embeds pick up code changes.
 	for (const menu of menus.values()) {
-		const channelId = Menus.get(menu.name)?.channel_id || config.siteChannel;
+		menu.onReady?.(async () => {
+			const saved = Menus.get(menu.name);
+			const ch = saved && await client.channels.fetch(saved.channel_id).catch(() => null);
+			if (ch instanceof TextChannel) await publishMenu(menu, ch).catch(e => console.error(`Refreshing menu "${menu.name}":`, e));
+		});
+		const channelId = Menus.get(menu.name)?.channel_id || menu.defaultChannel;
 		if (!channelId) continue;
 		const ch = await client.channels.fetch(channelId).catch(() => null);
 		if (ch instanceof TextChannel) {

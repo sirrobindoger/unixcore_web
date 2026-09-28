@@ -15,6 +15,7 @@ const Site: DiscordCommand = {
 		.setDescription("unixcore.sh moderation")
 		.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
 		.addSubcommand(s => s.setName("menu").setDescription("Post (or refresh) the site menu in this channel"))
+		.addSubcommand(s => s.setName("directory").setDescription("Post (or refresh) the site directory in this channel"))
 		.addSubcommand(s => s.setName("info").setDescription("Look up a user's site")
 			.addUserOption(o => o.setName("user").setDescription("Member").setRequired(true)))
 		.addSubcommand(s => s.setName("list").setDescription("List all registered sites"))
@@ -80,11 +81,11 @@ const Site: DiscordCommand = {
 			return void i.reply({ content: `🗑️ Purged ${n} entr${n === 1 ? "y" : "ies"} sharing #${id}'s IP.`, ...eph });
 		}
 
-		if (sub === "menu") {
+		if (sub === "menu" || sub === "directory") {
 			if (!(i.channel instanceof TextChannel)) return void i.reply({ content: "Run this in a text channel.", ...eph });
-			const menu = menus.get("sitemenu")!;
-			await publishMenu(menu, i.channel);
-			return void i.reply({ content: "Menu posted.", ...eph });
+			await i.deferReply(eph);
+			await publishMenu(menus.get(sub === "menu" ? "sitemenu" : "directory")!, i.channel);
+			return void i.editReply(sub === "menu" ? "Menu posted." : "Directory posted.");
 		}
 
 		if (sub === "list") {

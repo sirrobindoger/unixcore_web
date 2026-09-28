@@ -27,14 +27,14 @@ export const siteUrl = (slug: string) => `${config.publicUrl}/${slug}/`;
 const hubAssets = path.join(tplDir, "hub");
 const IMG_RE = /\.(png|gif|jpe?g)$/i;
 
-/** Called with the active-site count after every hub regenerate (bot.ts uses it for the presence). */
-export let onSiteCount: (count: number) => void = () => {};
-export const setSiteCountListener = (fn: typeof onSiteCount) => { onSiteCount = fn; };
+/** Called with the active-site count after every hub regenerate (presence, directory message). */
+const siteCountListeners: ((count: number) => void)[] = [];
+export const onSiteCount = (fn: (count: number) => void) => { siteCountListeners.push(fn); };
 
 /** Rewrites <sites>/index.html listing every active site. */
 export async function regenerateHub() {
 	const rows = Sites.all().filter(r => r.status === "active");
-	onSiteCount(rows.length);
+	for (const fn of siteCountListeners) fn(rows.length);
 	const sites = rows.map(r => `\t<li><a href="/${r.slug}/">${r.slug}</a></li>`).join("\n");
 	await fs.mkdir(config.sitesDir, { recursive: true });
 	await fs.cp(hubAssets, path.join(config.sitesDir, "_hub"), { recursive: true });
@@ -103,6 +103,17 @@ export async function changePassword(discordId: string, password: string) {
 	if (pwErr) throw new SiteError(pwErr);
 	await sftpgo.setPassword(row.slug, password);
 	return row;
+}
+
+export const TAGLINE_MAX = 100;
+
+/** Sets the directory one-liner; blank clears it. */
+export async function setTagline(discordId: string, text: string) {
+	const row = requireSite(discordId);
+	const tagline = text.replace(/[\p{Cc}\s]+/gu, " ").trim().slice(0, TAGLINE_MAX) || null;
+	Sites.setTagline(discordId, tagline);
+	await regenerateHub(); // nudges the directory message too
+	return { ...row, tagline };
 }
 
 export const MAX_KEYS = 5;
@@ -236,6 +247,47 @@ export async function info(discordId: string): Promise<SiteInfo | null> {
 	} catch {}
 	return { ...row, usedBytes, usedFiles, quotaBytes: config.quotaBytes, publicKeys };
 }
+
+// A line from starter.html; if it's still in index.html nobody has touched the site.
+const STARTER_MARK = "replace this file (<code>index.html</code>)";
+// Dropping one of these in the site root puts it next to the site in the directory.
+const BUTTON_FILES = ["88x31.png", "88x31.gif", "button.png", "button.gif"];
+
+const decodeEntities = (s: string) => s
+	.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+	.replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+	.replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (_, e) => ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " })[e as string]!);
+
+const readIndex = (slug: string) =>
+	Bun.file(path.join(siteDir(slug), "index.html")).slice(0, 64 * 1024).text().catch(() => "");
+
+export type SiteCard = {
+	title: string | null;
+	isStarter: boolean;
+	bytes: number;
+	updatedAt: number;
+	button: string | null;
+};
+
+/** What the directory shows for a site, read off disk. */
+export async function card(slug: string): Promise<SiteCard> {
+	const dir = siteDir(slug);
+	let bytes = 0, updatedAt = 0, button: string | null = null;
+	for (const rel of await fs.readdir(dir, { recursive: true }).catch(() => [] as string[])) {
+		const st = await fs.lstat(path.join(dir, rel)).catch(() => null);
+		if (!st?.isFile()) continue;
+		bytes += st.size;
+		updatedAt = Math.max(updatedAt, st.mtimeMs);
+		// ?v= so Discord's image cache notices a new button
+		if (!button && BUTTON_FILES.includes(rel)) button = `${siteUrl(slug)}${rel}?v=${Math.floor(st.mtimeMs)}`;
+	}
+	const html = await readIndex(slug);
+	const raw = /<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1];
+	const title = raw ? decodeEntities(raw).replace(/\s+/g, " ").trim().slice(0, 200) || null : null;
+	return { title, isStarter: html.includes(STARTER_MARK), bytes, updatedAt, button };
+}
+
+export const isStarter = async (slug: string) => (await readIndex(slug)).includes(STARTER_MARK);
 
 export const fmtBytes = (n: number) =>
 	n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 ** 2).toFixed(2)} MB`;

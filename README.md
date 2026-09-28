@@ -38,7 +38,7 @@ Then in Discord: `/site menu` in the channel where the menu should live.
 
 ## Mod commands (`Manage Server`)
 
-`/site menu` · `/site info @user` · `/site list` · `/site suspend @user <reason>` ·
+`/site menu` · `/site directory` · `/site info @user` · `/site list` · `/site suspend @user <reason>` ·
 `/site unsuspend @user` · `/site delete @user` · `/site reserve add|remove|list`
 
 Baseline reserved names live in `bot/reserved.txt`.
@@ -51,6 +51,20 @@ Drop PNGs/GIFs into `bot/templates/hub/bg/` and they're scattered behind the
 panel (up to 8 fixed spots, then it wraps). 88x31 buttons dropped into
 `bot/templates/hub/buttons/` line up under the badge. No restart needed beyond the next
 regenerate (any register/rename/suspend, or bot startup).
+
+## Directory
+
+`/site directory` posts the phone book into the current channel (or set
+`DIRECTORY_CHANNEL` and it posts itself on startup). The shared message shows
+the site count and a site of the day, picked at midnight UTC from sites that
+aren't still the starter page, skipping anyone featured in the last 14 days.
+**Browse** opens a private pager for whoever clicked, one site per page with
+prev/next, random, and a jump-to-letter menu, so people never fight over it.
+
+Each page shows the owner's tagline (the **Directory tagline** button in the site
+menu) or else the page `<title>`, plus size, last update and join date. A
+`88x31.png`/`.gif` (or `button.png`/`.gif`) in the site root shows up as its picture.
+Code: `bot/menus/directory.ts`; the pick is stored per day in the `featured` table.
 
 ## Guestbook
 
