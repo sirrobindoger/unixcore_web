@@ -123,8 +123,7 @@ const Directory: DiscordMenu = {
 			.setTitle("unixcore.sh directory")
 			.setURL(config.publicUrl)
 			.setDescription(
-				`${list.length} site${list.length === 1 ? "" : "s"} and counting. hit **Browse** to flip through them like a phone book, ` +
-				"you get your own copy so nobody else's clicking gets in the way.",
+				`${list.length} site${list.length === 1 ? "" : "s"} and counting. hit **Browse** to flip through them.`,
 			);
 		const buttons = [btn("uc:dir:open", "Browse", ButtonStyle.Primary), btn(`uc:dir:open|${RANDOM}`, "Random site")];
 		const pick = await siteOfTheDay(list);
