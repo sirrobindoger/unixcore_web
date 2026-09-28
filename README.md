@@ -14,7 +14,8 @@ How the pieces fit:
 
 - **SFTPGo** owns logins and quotas. Users are *virtual* — no Linux accounts —
   each jailed to `sites/<slug>` with a 100 MB byte quota. Its web client doubles
-  as a drag-and-drop uploader.
+  as a drag-and-drop uploader. Besides the password, users can add up to 5 SSH
+  public keys from the menu (🗝️ SSH keys) to log in without one.
 - **Caddy** serves `sites/` as static files. Nothing user-uploaded is ever executed.
 - **The bot** maps Discord user ID → slug in SQLite and drives SFTPGo's REST
   API. Suspending a site moves its folder to `suspended/` and disables the

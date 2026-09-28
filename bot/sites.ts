@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
 import { Guestbook, Sites, type SiteRow } from "./db";
-import { sftpgo } from "./sftpgo";
+import { SFTPGoError, sftpgo } from "./sftpgo";
 import { validatePassword, validateSlug } from "./slug";
 
 export class SiteError extends Error {}
@@ -105,6 +105,57 @@ export async function changePassword(discordId: string, password: string) {
 	return row;
 }
 
+export const MAX_KEYS = 5;
+const KEY_TYPES = new Set([
+	"ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
+	"sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com",
+]);
+
+// A key blob is a run of length-prefixed fields, the first being the type name
+// again. Checking that the fields add up exactly catches truncated/mangled pastes.
+function wellFormed(bytes: Buffer, type: string) {
+	let off = 0, fields = 0;
+	while (off < bytes.length) {
+		if (off + 4 > bytes.length) return false;
+		const len = bytes.readUInt32BE(off);
+		if (fields++ === 0 && bytes.toString("latin1", off + 4, off + 4 + len) !== type) return false;
+		off += 4 + len;
+	}
+	return off === bytes.length && fields >= 2;
+}
+
+/** One OpenSSH public key per line → normalized "type base64 [comment]" list. Throws on anything else. */
+function parsePublicKeys(text: string): string[] {
+	if (/PRIVATE KEY/.test(text))
+		throw new SiteError("That's your **private** key!! Never paste that anywhere. Use the `.pub` file instead.");
+	const keys = new Map<string, string>(); // base64 → line, so pasting a key twice is harmless
+	for (const [n, raw] of text.split(/\r?\n/).entries()) {
+		const line = raw.trim();
+		if (!line || line.startsWith("#")) continue;
+		const [type, blob, ...comment] = line.split(/\s+/);
+		const bad = new SiteError(`Line ${n + 1} isn't an SSH public key. It should look like \`ssh-ed25519 AAAA… you@laptop\`.`);
+		if (!KEY_TYPES.has(type!) || !blob || !/^[A-Za-z0-9+/]+={0,2}$/.test(blob)) throw bad;
+		if (!wellFormed(Buffer.from(blob, "base64"), type!)) throw bad;
+		keys.set(blob, [type, blob, ...comment].join(" "));
+	}
+	if (keys.size > MAX_KEYS) throw new SiteError(`That's ${keys.size} keys; the limit is ${MAX_KEYS}.`);
+	return [...keys.values()];
+}
+
+/** Replaces the site's SSH keys (empty text removes them all). Returns how many are set now. */
+export async function setPublicKeys(discordId: string, text: string) {
+	const row = requireSite(discordId);
+	const keys = parsePublicKeys(text);
+	try {
+		await sftpgo.setPublicKeys(row.slug, keys);
+	} catch (e) {
+		// SFTPGo parses the keys itself too (e.g. rejects weak RSA); pass its reason on.
+		if (e instanceof SFTPGoError && e.status === 400) throw new SiteError(`SFTPGo rejected that key: ${e.message.split(": ").slice(1).join(": ")}`);
+		throw e;
+	}
+	return { ...row, keyCount: keys.length };
+}
+
 /**
  * The slug is also the SFTP username, and SFTPGo can't rename users, so we
  * create a fresh login (needs a password we can't recover from the hash),
@@ -119,8 +170,9 @@ export async function changeSlug(discordId: string, newSlug: string, password: s
 	await ensureSlugFree(newSlug);
 
 	const oldDir = siteDir(row.slug), newDir = siteDir(newSlug);
+	const { public_keys: publicKeys } = await sftpgo.getUser(row.slug);
 	await sftpgo.disconnect(row.slug);
-	await sftpgo.createUser({ username: newSlug, password, homeDir: newDir, discordId });
+	await sftpgo.createUser({ username: newSlug, password, homeDir: newDir, discordId, publicKeys });
 	try {
 		await fs.rename(oldDir, newDir);
 	} catch (e) {
@@ -170,18 +222,19 @@ export async function remove(discordId: string) {
 	return row;
 }
 
-export type SiteInfo = SiteRow & { usedBytes: number; usedFiles: number; quotaBytes: number };
+export type SiteInfo = SiteRow & { usedBytes: number; usedFiles: number; quotaBytes: number; publicKeys: string[] };
 
 export async function info(discordId: string): Promise<SiteInfo | null> {
 	const row = Sites.byDiscord(discordId);
 	if (!row) return null;
-	let usedBytes = 0, usedFiles = 0;
+	let usedBytes = 0, usedFiles = 0, publicKeys: string[] = [];
 	try {
 		const u = await sftpgo.getUser(row.slug);
 		usedBytes = u.used_quota_size ?? 0;
 		usedFiles = u.used_quota_files ?? 0;
+		publicKeys = u.public_keys ?? [];
 	} catch {}
-	return { ...row, usedBytes, usedFiles, quotaBytes: config.quotaBytes };
+	return { ...row, usedBytes, usedFiles, quotaBytes: config.quotaBytes, publicKeys };
 }
 
 export const fmtBytes = (n: number) =>

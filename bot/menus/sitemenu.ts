@@ -42,7 +42,8 @@ async function dashboard(user: User): Promise<BaseMessageOptions> {
 		.setURL(url)
 		.addFields(
 			{ name: "Site", value: url },
-			{ name: "SFTP", value: `FileZilla/WinSCP host: \`sftp://${s.slug}@${config.sftpHost}:${config.sftpPort}\`\n(host \`${config.sftpHost}\` · port \`${config.sftpPort}\` · user \`${s.slug}\`)\n[web file manager](${config.webClientUrl}) (if you really wanna)` },
+			{ name: "SFTP", value: `FileZilla/WinSCP host: \`sftp://${s.slug}@${config.sftpHost}:${config.sftpPort}\`\n(host \`${config.sftpHost}\` · port \`${config.sftpPort}\` · user \`${s.slug}\`)\n[web file manager](${config.webClientUrl}) (if you really wanna)` +
+				(s.publicKeys.length ? `\n🗝️ ${s.publicKeys.length} SSH key${s.publicKeys.length === 1 ? "" : "s"} set, so no password needed from those machines` : "") },
 			{ name: "Storage", value: `\`${sites.usageBar(s.usedBytes, s.quotaBytes)}\` ${sites.fmtBytes(s.usedBytes)} / ${quotaMb} MB · ${s.usedFiles} files` },
 		);
 	if (s.status === "suspended") {
@@ -54,6 +55,7 @@ async function dashboard(user: User): Promise<BaseMessageOptions> {
 		components: [
 			row(
 				btn("uc:password", "Change password", ButtonStyle.Primary, "🔑"),
+				btn("uc:keys", "SSH keys", ButtonStyle.Secondary, "🗝️"),
 				btn("uc:slug", "Change name", ButtonStyle.Secondary, "✏️"),
 				btn("uc:refresh", "Refresh", ButtonStyle.Secondary, "🔄"),
 			),
@@ -78,11 +80,23 @@ const slugInput = (value?: string) =>
 const passwordInput = (label = "SFTP password") =>
 	textInput("password", label, { min: 8, max: 128, description: "8+ characters. Password!! Yay!" });
 
+// Paragraph input; optional because clearing it is how you remove your keys.
+const keysInput = (current: string[]) => {
+	const input = new TextInputBuilder().setCustomId("keys").setStyle(TextInputStyle.Paragraph).setRequired(false)
+		.setMaxLength(4000).setPlaceholder("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... you@laptop");
+	const value = current.join("\n");
+	if (value && value.length <= 4000) input.setValue(value);
+	return new LabelBuilder().setLabel("Public SSH keys").setTextInputComponent(input)
+		.setDescription(`Paste your .pub file, one key per line (max ${sites.MAX_KEYS}). Leave empty to remove them.`);
+};
+
 const modals = {
 	register: (user: User) => new ModalBuilder().setCustomId("uc:m:register").setTitle("Register your site")
 		.addLabelComponents(slugInput(slugFromHandle(user.username)), passwordInput()),
 	password: () => new ModalBuilder().setCustomId("uc:m:password").setTitle("Change SFTP password")
 		.addLabelComponents(passwordInput("New SFTP password")),
+	keys: (current: string[]) => new ModalBuilder().setCustomId("uc:m:keys").setTitle("SSH key login")
+		.addLabelComponents(keysInput(current)),
 	slug: (current: string) => new ModalBuilder().setCustomId("uc:m:slug").setTitle("Change site name")
 		.addLabelComponents(slugInput(current), passwordInput("SFTP password (re-enter or pick a new one)")),
 };
@@ -132,6 +146,19 @@ const SiteMenu: DiscordMenu = {
 			await m.deferReply({ flags: MessageFlags.Ephemeral });
 			const site = await sites.changePassword(i.user.id, field(m, "password"));
 			await m.editReply({ content: `🔑 Password updated for **${site.slug}**.` });
+		},
+
+		"uc:keys": async i => {
+			await asButton(i).showModal(modals.keys((await sites.info(i.user.id))?.publicKeys ?? []));
+		},
+		"uc:m:keys": async i => {
+			const m = asModal(i);
+			await m.deferReply({ flags: MessageFlags.Ephemeral });
+			const site = await sites.setPublicKeys(i.user.id, field(m, "keys"));
+			const content = site.keyCount
+				? `🗝️ Saved ${site.keyCount} key${site.keyCount === 1 ? "" : "s"} for **${site.slug}**. \`sftp -P ${config.sftpPort} ${site.slug}@${config.sftpHost}\` now logs in without a password (the password still works too).`
+				: `🗝️ Removed all SSH keys from **${site.slug}**; it's password only again.`;
+			await m.editReply({ content, ...await dashboard(i.user) });
 		},
 
 		"uc:slug": async i => {

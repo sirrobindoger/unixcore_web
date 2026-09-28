@@ -12,6 +12,7 @@ export type SFTPGoUser = {
 	id?: number;
 	username: string;
 	password?: string;
+	public_keys?: string[];
 	status: 0 | 1;
 	home_dir: string;
 	quota_size: number;
@@ -88,10 +89,11 @@ export const sftpgo = {
 	getUser: (username: string) =>
 		api<SFTPGoUser>("GET", `/users/${encodeURIComponent(username)}`),
 
-	createUser(opts: { username: string; password: string; homeDir: string; discordId: string }) {
+	createUser(opts: { username: string; password: string; homeDir: string; discordId: string; publicKeys?: string[] }) {
 		const user: SFTPGoUser = {
 			username: opts.username,
 			password: opts.password,
+			public_keys: opts.publicKeys ?? [],
 			status: 1,
 			home_dir: opts.homeDir,
 			quota_size: config.quotaBytes,
@@ -113,6 +115,10 @@ export const sftpgo = {
 
 	setPassword: (username: string, password: string) =>
 		sftpgo.updateUser(username, { password }),
+
+	// An empty list removes key login; the password keeps working either way.
+	setPublicKeys: (username: string, keys: string[]) =>
+		sftpgo.updateUser(username, { public_keys: keys }),
 
 	setStatus: (username: string, status: 0 | 1) =>
 		sftpgo.updateUser(username, { status }),
