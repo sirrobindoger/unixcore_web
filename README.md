@@ -58,11 +58,12 @@ regenerate (any register/rename/suspend, or bot startup).
 `DIRECTORY_CHANNEL` and it posts itself on startup). The shared message shows
 the site count and a site of the day, picked at midnight UTC from sites that
 aren't still the starter page, skipping anyone featured in the last 14 days.
-**Browse** opens a private pager for whoever clicked, one site per page with
-prev/next, random, and a jump-to-letter menu, so people never fight over it.
+**Browse** opens a private pager for whoever clicked, 10 sites per page with
+prev/next and a go-to-page menu, so people never fight over it. **Random** shows
+one site up close (with join date, and its 88x31 if it has one).
 
-Each page shows the owner's tagline (the **Directory tagline** button in the site
-menu) or else the page `<title>`, plus size, last update and join date. A
+Each entry shows the owner's tagline (the **Directory tagline** button in the site
+menu) or else the page `<title>`, plus size and last update. A
 `88x31.png`/`.gif` (or `button.png`/`.gif`) in the site root shows up as its picture.
 Code: `bot/menus/directory.ts`; the pick is stored per day in the `featured` table.
 

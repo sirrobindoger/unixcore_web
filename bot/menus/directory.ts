@@ -1,5 +1,6 @@
 // The phone book: one shared message (site count + site of the day) whose
-// Browse button hands each person their own ephemeral pager, one site a page.
+// Browse button hands each person their own ephemeral pager, 10 sites a page.
+// Random shows one site up close instead.
 import {
 	ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, StringSelectMenuBuilder,
 	escapeMarkdown, userMention, type BaseMessageOptions, type ButtonInteraction, type StringSelectMenuInteraction,
@@ -9,8 +10,9 @@ import { config } from "../config";
 import { Featured, Sites, type SiteRow } from "../db";
 import * as sites from "../sites";
 
-// Button args (see "key|arg" in bot.ts). Slugs can't contain these.
-const RANDOM = "?", NONE_BEFORE = "^", NONE_AFTER = "$";
+// Button arg for a random site (see "key|arg" in bot.ts). Slugs can't contain it.
+const RANDOM = "?";
+const PER_PAGE = 10;
 // Don't re-feature anyone from the last two weeks while there are others to pick.
 const FEATURE_GAP_DAYS = 14;
 
@@ -30,13 +32,21 @@ const listed = () => Sites.all().filter(r => r.status === "active").sort((a, b) 
 // User text goes into embeds, where masked links render; escapeMarkdown leaves those alone.
 const clean = (s: string) => escapeMarkdown(s).replace(/[[\]<>]/g, "\\$&");
 
+const cut = (s: string, max: number) => (s.length > max ? s.slice(0, max - 1).trimEnd() + "…" : s);
+
 /** Tagline if they set one, else the page <title> when it says more than the name. */
-function blurb(r: SiteRow, c: sites.SiteCard) {
-	if (r.tagline) return clean(r.tagline);
+function blurb(r: SiteRow, c: sites.SiteCard, max = 200) {
+	if (r.tagline) return clean(cut(r.tagline, max));
 	if (c.isStarter) return "*nothing here yet*";
-	if (c.title && c.title.toLowerCase() !== r.slug) return clean(c.title);
+	if (c.title && c.title.toLowerCase() !== r.slug) return clean(cut(c.title, max));
 	return null;
 }
+
+const meta = (r: SiteRow, c: sites.SiteCard) => [
+	`by ${userMention(r.discord_id)}`,
+	sites.fmtBytes(c.bytes),
+	c.updatedAt && `updated ${ts(c.updatedAt, "R")}`,
+];
 
 /** Today's pick, choosing one if there isn't one yet or the pick went away (deleted, suspended). */
 async function siteOfTheDay(list: SiteRow[]) {
@@ -51,64 +61,72 @@ async function siteOfTheDay(list: SiteRow[]) {
 	return pick ?? null;
 }
 
-// Letters to jump to. Up to 25 options (Discord's cap), merging neighbours into ranges if needed.
-function jumpMenu(list: SiteRow[], current: SiteRow) {
-	const groups: { key: string; first: string; count: number }[] = [];
-	for (const r of list) {
-		const key = /[0-9]/.test(r.slug[0]!) ? "0-9" : r.slug[0]!;
-		const last = groups.at(-1);
-		if (last?.key === key) last.count++;
-		else groups.push({ key, first: r.slug, count: 1 });
-	}
-	if (groups.length < 2) return null;
-	const per = Math.ceil(groups.length / 25);
+// "go to page" menu, labelled by the first and last name on each page like
+// the top of a phone book page. Discord allows 25 options, so it's a window around `p`.
+function pageMenu(list: SiteRow[], p: number, pages: number) {
+	if (pages < 2) return null;
+	const from = Math.max(0, Math.min(p - 12, pages - 25));
 	const options = [];
-	for (let g = 0; g < groups.length; g += per) {
-		const chunk = groups.slice(g, g + per);
-		const count = chunk.reduce((n, x) => n + x.count, 0);
-		const label = chunk.length === 1 ? chunk[0]!.key : `${chunk[0]!.key}–${chunk.at(-1)!.key}`;
-		const here = chunk.some(x => x.key === (/[0-9]/.test(current.slug[0]!) ? "0-9" : current.slug[0]));
-		options.push({ label, value: chunk[0]!.first, description: `${count} site${count === 1 ? "" : "s"}`, default: here });
+	for (let k = from; k < Math.min(pages, from + 25); k++) {
+		const chunk = list.slice(k * PER_PAGE, (k + 1) * PER_PAGE);
+		const label = chunk.length === 1 ? chunk[0]!.slug : `${chunk[0]!.slug} – ${chunk.at(-1)!.slug}`;
+		options.push({ label, value: String(k), description: `page ${k + 1}`, default: k === p });
 	}
-	return new StringSelectMenuBuilder().setCustomId("uc:dir:jump").setPlaceholder("jump to...").addOptions(options);
+	return new StringSelectMenuBuilder().setCustomId("uc:dir:page").setPlaceholder("go to page...").addOptions(options);
 }
 
-/** One page of the book. `target` is a slug (or the nearest spot to one that's gone), RANDOM, or nothing for the start. */
-async function page(target?: string): Promise<BaseMessageOptions> {
+/** Page `p` of the book (clamped), 10 sites each. */
+async function listPage(p: number): Promise<BaseMessageOptions> {
 	const list = listed();
 	if (!list.length) return { content: "no sites yet.", embeds: [], components: [] };
-	let n = 0;
-	if (target === RANDOM) n = Math.floor(Math.random() * list.length);
-	else if (target) {
-		n = list.findIndex(r => r.slug >= target);
-		if (n < 0) n = list.length - 1;
-	}
-	const r = list[n]!, c = await sites.card(r.slug), url = sites.siteUrl(r.slug);
-	const meta = [
-		`by ${userMention(r.discord_id)}`,
-		sites.fmtBytes(c.bytes),
-		c.updatedAt && `updated ${ts(c.updatedAt, "R")}`,
-		`here since ${ts(r.created_at, "D")}`,
-	].filter(Boolean).join(" · ");
+	const pages = Math.ceil(list.length / PER_PAGE);
+	p = Math.min(Math.max(Number.isFinite(p) ? p : 0, 0), pages - 1);
+	const onPage = list.slice(p * PER_PAGE, (p + 1) * PER_PAGE);
+	const cards = await Promise.all(onPage.map(r => sites.card(r.slug)));
+	const entries = onPage.map((r, k) => {
+		const c = cards[k]!, b = blurb(r, c, 80);
+		return `**[~${r.slug}](${sites.siteUrl(r.slug)})**${b ? ` · ${b}` : ""}\n${meta(r, c).filter(Boolean).join(" · ")}`;
+	});
 	const embed = new EmbedBuilder()
 		.setColor(0x5865f2)
-		.setTitle(`~${r.slug}`)
-		.setURL(url)
-		.setDescription([blurb(r, c), meta].filter(Boolean).join("\n\n"))
-		.setFooter({ text: `${n + 1} of ${list.length}` });
-	if (c.button) embed.setThumbnail(c.button);
-	const jump = jumpMenu(list, r);
+		.setTitle("unixcore.sh directory")
+		.setURL(config.publicUrl)
+		.setDescription(entries.join("\n\n"))
+		.setFooter({ text: `page ${p + 1} of ${pages} · ${list.length} site${list.length === 1 ? "" : "s"}` });
+	const jump = pageMenu(list, p, pages);
 	return {
 		embeds: [embed],
 		components: [
 			row(
-				btn(`uc:dir:go|${list[n - 1]?.slug ?? NONE_BEFORE}`, "← prev").setDisabled(n === 0),
-				btn(`uc:dir:go|${list[n + 1]?.slug ?? NONE_AFTER}`, "next →").setDisabled(n === list.length - 1),
+				btn(`uc:dir:list|${p - 1}`, "← prev").setDisabled(p === 0),
+				btn(`uc:dir:list|${p + 1}`, "next →").setDisabled(p === pages - 1),
 				btn(`uc:dir:go|${RANDOM}`, "Random"),
-				link(url, "Visit"),
 			),
 			...(jump ? [row(jump)] : []),
 		],
+	};
+}
+
+/** One site up close. `target` is a slug (or the nearest spot to one that's gone) or RANDOM. */
+async function sitePage(target: string): Promise<BaseMessageOptions> {
+	const list = listed();
+	if (!list.length) return { content: "no sites yet.", embeds: [], components: [] };
+	let n = target === RANDOM ? Math.floor(Math.random() * list.length) : list.findIndex(r => r.slug >= target);
+	if (n < 0) n = list.length - 1;
+	const r = list[n]!, c = await sites.card(r.slug), url = sites.siteUrl(r.slug);
+	const embed = new EmbedBuilder()
+		.setColor(0x5865f2)
+		.setTitle(`~${r.slug}`)
+		.setURL(url)
+		.setDescription([blurb(r, c), [...meta(r, c), `here since ${ts(r.created_at, "D")}`].filter(Boolean).join(" · ")].filter(Boolean).join("\n\n"));
+	if (c.button) embed.setThumbnail(c.button);
+	return {
+		embeds: [embed],
+		components: [row(
+			btn(`uc:dir:list|${Math.floor(n / PER_PAGE)}`, "← back to list"),
+			btn(`uc:dir:go|${RANDOM}`, "Random"),
+			link(url, "Visit"),
+		)],
 	};
 }
 
@@ -141,12 +159,17 @@ const Directory: DiscordMenu = {
 	},
 
 	handlers: {
-		"uc:dir:open": async (i, arg) => { await i.reply({ ...await page(arg), flags: MessageFlags.Ephemeral }); },
-		"uc:dir:go": async (i, arg) => { await (i as ButtonInteraction).update(await page(arg)); },
-		"uc:dir:jump": async i => {
-			const s = i as StringSelectMenuInteraction;
-			await s.update(await page(s.values[0]));
+		// From the shared message: Browse (page 1) or Random site, as your own copy.
+		"uc:dir:open": async (i, arg) => {
+			await i.reply({ ...await (arg === RANDOM ? sitePage(RANDOM) : listPage(0)), flags: MessageFlags.Ephemeral });
 		},
+		// From inside your copy.
+		"uc:dir:list": async (i, arg) => { await (i as ButtonInteraction).update(await listPage(Number(arg))); },
+		"uc:dir:page": async i => {
+			const s = i as StringSelectMenuInteraction;
+			await s.update(await listPage(Number(s.values[0])));
+		},
+		"uc:dir:go": async (i, arg) => { await (i as ButtonInteraction).update(await sitePage(arg ?? RANDOM)); },
 	},
 
 	onReady: refresh => {
