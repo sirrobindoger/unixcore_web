@@ -47,10 +47,15 @@ Baseline reserved names live in `bot/reserved.txt`.
 
 `bot/templates/hub.html` is the front page at `/`. Static bits live in
 `bot/templates/hub/` and get copied to `sites/_hub/` on every regenerate.
-Drop PNGs/GIFs into `bot/templates/hub/bg/` and they're scattered behind the
-panel (up to 8 fixed spots, then it wraps). 88x31 buttons dropped into
-`bot/templates/hub/buttons/` line up under the badge. No restart needed beyond the next
-regenerate (any register/rename/suspend, or bot startup).
+The site list puts sites that have replaced the starter page first (bold) and
+untouched ones after (grey). The logo uses the badge's type (bold Verdana) and sits
+in a box tiled with `hub/velvet.png`, with `hub/asya.png` beside it. The Discord button's online count is fetched
+in the browser from Discord's public invite endpoint (no bot involved). 88x31 buttons dropped into
+`bot/templates/hub/buttons/` line up next to the badge in the footer. No restart
+needed beyond the next regenerate (any register/rename/suspend, or bot startup).
+
+`bot/templates/hub/terms.html` is the rules page. Caddy rewrites `/terms` to it, and
+the hub links to it from the footer.
 
 ## Directory
 

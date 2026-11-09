@@ -1,81 +1,171 @@
-<html>
+<!doctype html>
+<html lang="en">
 <head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>unixcore.sh</title>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<style type="text/css">
-	/* the scattered junk behind the panel -- one <img> per file in bot/templates/hub/bg/ */
-	.bg img { position: fixed; z-index: 0; image-rendering: pixelated; }
-	.bg img:nth-child(8n+1) { left: 4%;   top: 6%;  }
-	.bg img:nth-child(8n+2) { right: 5%;  top: 12%; }
-	.bg img:nth-child(8n+3) { left: 8%;   bottom: 14%; }
-	.bg img:nth-child(8n+4) { right: 7%;  bottom: 8%; }
-	.bg img:nth-child(8n+5) { left: 22%;  top: 44%; }
-	.bg img:nth-child(8n+6) { right: 20%; top: 60%; }
-	.bg img:nth-child(8n+7) { left: 40%;  top: 3%;  }
-	.bg img:nth-child(8n+8) { right: 38%; bottom: 3%; }
-	table { position: relative; z-index: 1; }
+<style>
+	* { box-sizing: border-box; }
+	html, body { margin: 0; }
+	body {
+		min-height: 100vh; min-height: 100svh;
+		display: flex; flex-direction: column;
+		background: #000 url("/_hub/tile.png");
+		color: #fff;
+		font: 15px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	}
+	a { color: inherit; }
+
+	main {
+		position: relative; z-index: 2; /* above the footer, so the open site list covers it */
+		flex: 1;
+		display: flex; flex-direction: column; align-items: center; justify-content: center;
+		padding: 48px 16px;
+	}
+
+	/* the purple velvet box the logo and buttons sit in (same velvet as the badge's left strip) */
+	.box {
+		max-width: 100%;
+		display: flex; flex-direction: column; align-items: center;
+		padding: 40px 56px 48px;
+		background: #2a0a2a url("/_hub/velvet.png");
+		border: 2px solid #000;
+		box-shadow: 0 0 0 1px #6a2a6a, 8px 8px 0 #000;
+	}
+
+	/* same type as the badge: bold Verdana, tight */
+	h1 {
+		display: flex; align-items: flex-end; gap: 0.12em;
+		margin: 0 0 32px;
+		font: bold clamp(32px, 8vw, 96px)/1 Verdana, Tahoma, "DejaVu Sans", sans-serif;
+		letter-spacing: -0.04em;
+		text-shadow: 0.04em 0.04em 0 #000;
+		white-space: nowrap;
+	}
+	h1 img { height: 1.35em; width: auto; margin-bottom: -0.08em; }
+
+	.nav { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+
+	/* silver bevelled buttons, same chrome as the badge */
+	.btn, summary {
+		display: inline-flex; align-items: center; gap: 10px;
+		height: 42px; padding: 0 18px;
+		background: linear-gradient(#e6e6e6, #c0c0c0 45%, #a8a8a8);
+		color: #000;
+		border: 2px solid; border-color: #fff #404040 #404040 #fff;
+		box-shadow: inset -1px -1px 0 #808080, inset 1px 1px 0 #dfdfdf, 2px 2px 0 #000;
+		font: bold 14px/1 Verdana, Tahoma, "DejaVu Sans", sans-serif; letter-spacing: -0.02em;
+		text-shadow: 1px 1px 0 #fff;
+		text-decoration: none;
+		cursor: pointer; user-select: none;
+	}
+	.btn:hover, summary:hover { background: linear-gradient(#f2f2f2, #cfcfcf 45%, #b4b4b4); }
+	/* pressed: bevel flips and the button sinks into its shadow */
+	.btn:active, summary:active, details[open] summary {
+		background: linear-gradient(#a8a8a8, #c0c0c0 55%, #d4d4d4);
+		border-color: #404040 #fff #fff #404040;
+		box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf;
+		transform: translate(2px, 2px);
+	}
+	.btn:focus-visible, summary:focus-visible { outline: 2px dotted #fff; outline-offset: 3px; }
+
+	/* green dot + live count, filled in by the script at the bottom */
+	.online { display: none; align-items: center; gap: 6px; color: #404040; font-weight: normal; }
+	.online::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2fa84f; box-shadow: inset -1px -1px 0 #1a6b30; }
+
+	summary { list-style: none; }
+	summary::-webkit-details-marker { display: none; }
+	summary::after { content: ""; width: 7px; height: 7px; margin-top: -4px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); transition: transform .15s; }
+	details[open] summary::after { margin-top: 3px; transform: rotate(-135deg); }
+
+	.list {
+		position: absolute; left: 50%; top: calc(100% + 10px);
+		transform: translateX(-50%);
+		width: min(860px, calc(100vw - 24px));
+		max-height: 60vh; overflow-y: auto; /* the script below trims this so it always ends above the bottom of the screen */
+		overscroll-behavior: contain;
+		background: #000; border: 1px solid #fff;
+		padding: 16px 20px;
+	}
+	.list ul { margin: 0; padding: 0; list-style: none; columns: 5 130px; column-gap: 20px; }
+	.list li { break-inside: avoid; }
+	.list a { display: block; padding: 3px 0; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.list a:hover { text-decoration: underline; }
+	.list .live a { font-weight: 700; }
+	.list .empty a { color: #6b6b6b; }
+	.list hr { border: 0; border-top: 1px solid #333; margin: 12px 0; }
+
+	footer {
+		position: relative; z-index: 1;
+		display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px;
+		padding: 0 16px 24px;
+		font-size: 12px; color: #808080;
+	}
+	footer img { display: block; image-rendering: pixelated; }
+	footer a { color: #808080; }
+	footer a:hover { color: #fff; }
+
+	@media (max-width: 600px) {
+		main { padding: 40px 12px; }
+		.box { padding: 28px 10px 30px; box-shadow: 0 0 0 1px #6a2a6a, 5px 5px 0 #000; }
+		.btn, summary { padding: 0 8px; gap: 6px; font-size: 12px; height: 36px; letter-spacing: -0.04em; }
+		.nav { gap: 6px; }
+		.online span { display: none; } /* just the dot + number, so all three buttons fit on one row */
+		.list { padding: 12px 12px; font-size: 12px; }
+		.list ul { columns: 3; column-gap: 10px; }
+		.list a { padding: 2px 0; }
+		.list hr { margin: 8px 0; }
+	}
 </style>
 </head>
-<body bgcolor="#000000" background="/_hub/tile.png" text="#c0c0c0" link="#66ff99" vlink="#33aa66" alink="#ffffff">
+<body>
 
-<div class="bg">
-{{decor}}
+<main>
+<div class="box">
+	<h1>unixcore.sh<img src="/_hub/asya.png" width="386" height="259" alt=""></h1>
+
+	<div class="nav">
+		<details id="sites">
+			<summary>{{count}} sites</summary>
+			<div class="list">
+{{siteList}}
+			</div>
+		</details>
+		<a class="btn" href="https://discord.gg/dP8xNKbzcV">discord <span class="online" id="online"></span></a>
+		<a class="btn" href="/guestbook">guestbook</a>
+	</div>
 </div>
+</main>
 
-<br><br>
-<center>
-<table border="0" cellpadding="0" cellspacing="0">
-<tr>
-<td valign="top">
+<footer>
+	<a href="/"><img src="/_hub/badge-88x31.png" width="88" height="31" alt="unixcore.sh" title="grab a badge for your site"></a>
+	{{buttons}}
+	<a href="/terms">rules</a>
+</footer>
 
-<table border="1" cellpadding="12" cellspacing="0" bgcolor="#000000" width="420">
-<tr><td>
-<font face="Times New Roman, Times, serif">
+<script>
+	// close the site list on Escape or a click anywhere else
+	const sites = document.getElementById("sites");
+	// the list never makes the page scroll: it stops 12px above the bottom of the screen and scrolls inside itself if it has to
+	const list = sites.querySelector(".list");
+	const fit = () => { if (sites.open) list.style.maxHeight = Math.max(160, innerHeight - list.getBoundingClientRect().top - 12) + "px"; };
+	sites.addEventListener("toggle", fit);
+	addEventListener("resize", fit);
+	document.addEventListener("click", e => { if (sites.open && !sites.contains(e.target)) sites.open = false; });
+	document.addEventListener("keydown", e => { if (e.key === "Escape" && sites.open) { sites.open = false; sites.querySelector("summary").focus(); } });
 
-<center>
-<h2>unixcore.sh</h2>
-</center>
-<hr size="1" noshade>
-
-<p>{{count}} sites so far! come hang out in the <a href="https://discord.gg/dP8xNKbzcV">discord</a></p>
-<ul>
-{{sites}}
-</ul>
-
-<hr size="1" noshade>
-<center>
-<a href="/"><img src="/_hub/badge.png" width="176" height="62" border="0" alt="unixcore.sh"></a>
-<br>
-<a href="/"><img src="/_hub/badge-88x31.png" width="88" height="31" border="0" alt="unixcore.sh"></a>
-<br><font size="1" color="#808080">grab a badge for your site</font>
-<br><br>
-{{buttons}}
-</center>
-
-</font>
-</td></tr>
-</table>
-
-</td>
-<td valign="top" width="16"></td>
-<td valign="top">
-
-<!-- guestbook box, hangs off the right of the main panel -->
-<table border="1" cellpadding="12" cellspacing="0" bgcolor="#000000" width="170">
-<tr><td align="center">
-<font face="Times New Roman, Times, serif">
-<font size="2">&#9998;</font><br>
-<font size="5"><b><a href="/guestbook">sign the<br>guestbook</a></b></font>
-<br><br>
-<font size="2" color="#808080">{{guestbookCount}} signature{{guestbookPlural}} so far</font>
-</font>
-</td></tr>
-</table>
-
-</td>
-</tr>
-</table>
-</center>
+	// live "N online" from Discord's public invite endpoint; if it fails the button just says "discord"
+	fetch("https://discord.com/api/v10/invites/dP8xNKbzcV?with_counts=true")
+		.then(r => r.ok ? r.json() : Promise.reject())
+		.then(d => {
+			const n = d.approximate_presence_count;
+			if (typeof n !== "number") return;
+			const el = document.getElementById("online");
+			el.innerHTML = n.toLocaleString() + "<span> online</span>";
+			el.style.display = "inline-flex";
+		})
+		.catch(() => {});
+</script>
 
 </body>
 </html>

@@ -3,7 +3,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
-import { Guestbook, Sites, type SiteRow } from "./db";
+import { Sites, type SiteRow } from "./db";
 import { SFTPGoError, sftpgo } from "./sftpgo";
 import { validatePassword, validateSlug } from "./slug";
 
@@ -23,7 +23,7 @@ const hubTpl = await fs.readFile(path.join(tplDir, "hub.html"), "utf8");
 export const siteUrl = (slug: string) => `${config.publicUrl}/${slug}/`;
 
 // Static bits for the hub page. Copied to <sites>/_hub/ (an underscore can't be
-// a slug, so no user can claim it). Anything in hub/bg/ is scattered behind the panel.
+// a slug, so no user can claim it).
 const hubAssets = path.join(tplDir, "hub");
 const IMG_RE = /\.(png|gif|jpe?g)$/i;
 
@@ -35,22 +35,23 @@ export const onSiteCount = (fn: (count: number) => void) => { siteCountListeners
 export async function regenerateHub() {
 	const rows = Sites.all().filter(r => r.status === "active");
 	for (const fn of siteCountListeners) fn(rows.length);
-	const sites = rows.map(r => `\t<li><a href="/${r.slug}/">${r.slug}</a></li>`).join("\n");
+	// Sites someone has actually built go first (bold); untouched starter pages go after, greyed out.
+	const slugs = rows.map(r => r.slug).sort();
+	const starter = await Promise.all(slugs.map(isStarter));
+	const list = (cls: string, group: string[]) => group.length
+		? `\t\t\t\t<ul class="${cls}">\n${group.map(s => `\t\t\t\t\t<li><a href="/${s}/">${s}</a></li>`).join("\n")}\n\t\t\t\t</ul>`
+		: "";
+	const live = slugs.filter((_, i) => !starter[i]), empty = slugs.filter((_, i) => starter[i]);
+	const siteList = [list("live", live), list("empty", empty)].filter(Boolean).join("\n\t\t\t\t<hr>\n");
 	await fs.mkdir(config.sitesDir, { recursive: true });
 	await fs.cp(hubAssets, path.join(config.sitesDir, "_hub"), { recursive: true });
 	const imagesIn = async (sub: string) =>
 		(await fs.readdir(path.join(hubAssets, sub)).catch(() => [] as string[])).filter(f => IMG_RE.test(f)).sort();
-	// hub/bg/ is scattered behind the panel; hub/buttons/ is a row of buttons (usually 88x31) under the badge
-	const decor = (await imagesIn("bg")).map(f => `\t<img src="/_hub/bg/${f}" alt="">`).join("\n");
+	// hub/buttons/ is a row of buttons (usually 88x31) next to the badge in the footer
 	const buttons = (await imagesIn("buttons")).map(f => `<img src="/_hub/buttons/${f}" alt="">`).join("\n");
-	const guestbookCount = Guestbook.count();
 	await fs.writeFile(
 		path.join(config.sitesDir, "index.html"),
-		render(hubTpl, {
-			count: rows.length, sites, decor, buttons,
-			guestbookCount, guestbookPlural: guestbookCount === 1 ? "" : "s",
-			generated: new Date().toISOString(),
-		}),
+		render(hubTpl, { count: rows.length, siteList, buttons }),
 	);
 }
 

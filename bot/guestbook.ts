@@ -5,7 +5,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
 import { Guestbook } from "./db";
-import { regenerateHub } from "./sites";
 
 export const LIMITS = { name: 40, url: 200, message: 500 } as const;
 const COOLDOWN_MS = 60_000;
@@ -122,7 +121,6 @@ async function handlePost(req: Request, ip: string): Promise<Response> {
 
 	Guestbook.insert(form.name, url, form.message, h);
 	lastPost.set(h, Date.now());
-	regenerateHub().catch(e => console.error("hub regenerate after guestbook post failed", e));
 	if (lastPost.size > 5000) for (const [k, t] of lastPost) if (Date.now() - t > COOLDOWN_MS) lastPost.delete(k);
 
 	// Redirect so a refresh doesn't resubmit.
