@@ -1,67 +1,149 @@
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<title>guestbook - unixcore.sh</title>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style type="text/css">
-	textarea, input { background: #000; color: #c0c0c0; border: 1px solid #c0c0c0; font-family: "Times New Roman", Times, serif; font-size: 14px; }
-	input[type=submit] { cursor: pointer; padding: 2px 10px; }
-	.entry { margin: 0 0 14px 0; }
-	.meta { color: #808080; font-size: 12px; }
-	.err { color: #ff6666; }
-	.ok { color: #66ff99; }
+<title>guestbook - unixcore.sh</title>
+<style>
+	/* same look as the hub (bot/templates/hub.html): velvet box, badge type, silver buttons */
+	* { box-sizing: border-box; }
+	html, body { margin: 0; }
+	body {
+		min-height: 100vh; min-height: 100svh;
+		display: flex; flex-direction: column;
+		background: #000 url("/_hub/tile.png");
+		color: #fff;
+		font: 15px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	}
+	a { color: inherit; }
+
+	main { flex: 1; display: flex; justify-content: center; padding: 48px 16px; }
+
+	.box {
+		width: 640px; max-width: 100%;
+		padding: 32px 40px 40px;
+		background: #2a0a2a url("/_hub/velvet.png");
+		border: 2px solid #000;
+		box-shadow: 0 0 0 1px #6a2a6a, 8px 8px 0 #000;
+	}
+
+	header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+	h1 {
+		margin: 0;
+		font: bold clamp(32px, 7vw, 56px)/1 Verdana, Tahoma, "DejaVu Sans", sans-serif;
+		letter-spacing: -0.04em;
+		text-shadow: 0.04em 0.04em 0 #000;
+	}
+
+	/* silver bevelled buttons, same chrome as the badge */
+	.btn {
+		display: inline-flex; align-items: center; gap: 10px;
+		height: 42px; padding: 0 18px;
+		background: linear-gradient(#e6e6e6, #c0c0c0 45%, #a8a8a8);
+		color: #000;
+		border: 2px solid; border-color: #fff #404040 #404040 #fff;
+		box-shadow: inset -1px -1px 0 #808080, inset 1px 1px 0 #dfdfdf, 2px 2px 0 #000;
+		font: bold 14px/1 Verdana, Tahoma, "DejaVu Sans", sans-serif; letter-spacing: -0.02em;
+		text-shadow: 1px 1px 0 #fff;
+		text-decoration: none; white-space: nowrap;
+		cursor: pointer; user-select: none;
+	}
+	.btn:hover { background: linear-gradient(#f2f2f2, #cfcfcf 45%, #b4b4b4); }
+	.btn:active {
+		background: linear-gradient(#a8a8a8, #c0c0c0 55%, #d4d4d4);
+		border-color: #404040 #fff #fff #404040;
+		box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf;
+		transform: translate(2px, 2px);
+	}
+	.btn:focus-visible { outline: 2px dotted #fff; outline-offset: 3px; }
+
+	/* black panels inside the box, like the site dropdown on the hub */
+	.panel { background: #000; border: 1px solid #fff; padding: 20px; }
+	.panel + .panel { margin-top: 20px; }
+
+	form label { display: block; margin-bottom: 14px; color: #c0c0c0; font-size: 13px; }
+	form label span { color: #6b6b6b; }
+	input[type=text], textarea {
+		display: block; width: 100%; margin-top: 4px;
+		padding: 8px 10px;
+		background: #111; color: #fff;
+		border: 2px solid; border-color: #404040 #c0c0c0 #c0c0c0 #404040; /* sunken, the opposite of the buttons */
+		font: inherit; font-size: 14px;
+		border-radius: 0;
+	}
+	input[type=text]:focus, textarea:focus { outline: none; border-color: #808080 #fff #fff #808080; background: #000; }
+	textarea { resize: vertical; min-height: 110px; }
+	.actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
+	.cf-turnstile { min-height: 65px; }
+
 	.hp { position: absolute; left: -9999px; }
-	.cf-turnstile { margin: 8px 0; }
+	.err { margin: 0 0 16px; color: #ff7a7a; font-weight: bold; }
+	.ok { margin: 0 0 16px; color: #7dff9e; font-weight: bold; }
+
+	.count { margin: 0 0 16px; color: #808080; font-size: 13px; }
+	.entry { padding: 12px 0; border-top: 1px solid #262626; overflow-wrap: anywhere; }
+	.entry:first-of-type { border-top: 0; padding-top: 0; }
+	.entry b { font-weight: 700; }
+	.entry b a { text-decoration: underline; text-underline-offset: 2px; }
+	.entry b a:hover { color: #c0c0c0; }
+	.meta { color: #6b6b6b; font-size: 12px; margin-left: 4px; }
+
+	footer {
+		display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px;
+		padding: 0 16px 24px;
+		font-size: 12px; color: #808080;
+	}
+	footer img { display: block; image-rendering: pixelated; }
+	footer a { color: #808080; }
+	footer a:hover { color: #fff; }
+
+	@media (max-width: 600px) {
+		main { padding: 32px 12px; }
+		.box { padding: 24px 12px 16px; box-shadow: 0 0 0 1px #6a2a6a, 5px 5px 0 #000; }
+		.panel { padding: 14px; }
+		.btn { padding: 0 10px; font-size: 12px; height: 36px; letter-spacing: -0.04em; }
+	}
 </style>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
-<body bgcolor="#000000" background="/_hub/tile.png" text="#c0c0c0" link="#66ff99" vlink="#33aa66" alink="#ffffff">
+<body>
 
-<br><br>
-<center>
-<table border="1" cellpadding="12" cellspacing="0" bgcolor="#000000" width="480">
-<tr><td>
-<font face="Times New Roman, Times, serif">
+<main>
+<div class="box">
+	<header>
+		<h1>guestbook</h1>
+		<a class="btn" href="/">&larr; unixcore.sh</a>
+	</header>
 
-<center>
-<h2>guestbook</h2>
-<p><a href="/">&lt;- back to unixcore.sh</a></p>
-</center>
-<hr size="1" noshade>
+	<form class="panel" method="post" action="/guestbook">
+		{{notice}}
+		<label>name
+			<input type="text" name="name" maxlength="{{nameMax}}" value="{{name}}" required>
+		</label>
+		<label>your site <span>(optional)</span>
+			<input type="text" name="url" maxlength="{{urlMax}}" value="{{url}}" placeholder="https://">
+		</label>
+		<label>message
+			<textarea name="message" rows="5" maxlength="{{messageMax}}" required>{{message}}</textarea>
+		</label>
+		<div class="hp" aria-hidden="true"><label>leave empty <input type="text" name="email" tabindex="-1" autocomplete="off"></label></div>
+		<div class="actions">
+			<div class="cf-turnstile" data-sitekey="{{siteKey}}" data-theme="dark"></div>
+			<button class="btn" type="submit">sign it</button>
+		</div>
+	</form>
 
-{{notice}}
-
-<form method="post" action="/guestbook">
-<p>
-name<br>
-<input type="text" name="name" maxlength="{{nameMax}}" size="30" value="{{name}}" required>
-</p>
-<p>
-your site (optional)<br>
-<input type="text" name="url" maxlength="{{urlMax}}" size="30" value="{{url}}" placeholder="https://">
-</p>
-<p>
-message<br>
-<textarea name="message" rows="5" cols="44" maxlength="{{messageMax}}" required>{{message}}</textarea>
-</p>
-<div class="hp" aria-hidden="true"><label>leave empty <input type="text" name="email" tabindex="-1" autocomplete="off"></label></div>
-<div class="cf-turnstile" data-sitekey="{{siteKey}}" data-theme="dark"></div>
-<input type="submit" value="sign it">
-</form>
-
-<hr size="1" noshade>
-<p>{{count}} signatures</p>
+	<div class="panel">
+		<p class="count">{{count}} signatures</p>
 {{entries}}
+	</div>
+</div>
+</main>
 
-<hr size="1" noshade>
-<center>
-<a href="/"><img src="/_hub/badge.png" width="176" height="62" border="0" alt="unixcore.sh"></a>
-</center>
-
-</font>
-</td></tr>
-</table>
-</center>
+<footer>
+	<a href="/"><img src="/_hub/badge-88x31.png" width="88" height="31" alt="unixcore.sh"></a>
+	<a href="/terms">rules</a>
+</footer>
 
 </body>
 </html>
