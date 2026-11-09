@@ -4,8 +4,23 @@
     {
       "name": "hub-preview",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "-d", "sites"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "-d",
+        "sites"
+      ],
       "port": 8765
+    },
+    {
+      "name": "caddy-local",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/sbox/Documents/unixcore_web && SITES_DIR=/Users/sbox/Documents/unixcore_web/sites exec caddy run --config infra/Caddyfile.local --adapter caddyfile"
+      ],
+      "port": 8000
     }
   ]
 }

@@ -57,6 +57,10 @@ needed beyond the next regenerate (any register/rename/suspend, or bot startup).
 `bot/templates/hub/terms.html` is the rules page. Caddy rewrites `/terms` to it, and
 the hub links to it from the footer.
 
+`bot/templates/hub/404.html` is the not-found page. Caddy's `handle_errors` serves it
+(with a 404 status) for any missing path, unless the site has its own `404.html` in
+its folder, which wins for paths under that site.
+
 ## Directory
 
 `/site directory` posts the phone book into the current channel (or set

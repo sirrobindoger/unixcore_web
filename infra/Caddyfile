@@ -33,7 +33,15 @@
 
 	# never serve dotfiles (.DS_Store, .htaccess-alikes, etc.)
 	@dot path */.*
-	respond @dot 404
+	error @dot 404
+
+	# Missing pages get the unixcore 404 (bot/templates/hub/404.html), with a real 404
+	# status. A site can override it by putting its own 404.html in its folder.
+	handle_errors 404 {
+		root * /srv/unixcore/sites
+		try_files /{http.request.uri.path.0}/404.html /_hub/404.html
+		file_server
+	}
 
 	header {
 		X-Content-Type-Options nosniff
