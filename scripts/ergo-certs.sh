@@ -8,7 +8,7 @@
 set -euo pipefail
 STORE=/var/lib/caddy/.local/share/caddy/certificates
 DEST=/var/lib/ergo/tls
-certdir() { ls -d "$STORE"/*/"$1" 2>/dev/null | head -1; }
+certdir() { ls -d "$STORE"/*/"$1" 2>/dev/null | head -1 || true; }
 
 MAIN=$(certdir unixcore.sh)
 [ -n "$MAIN" ] || { echo "no Caddy cert for unixcore.sh yet"; exit 1; }

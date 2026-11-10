@@ -37,7 +37,9 @@ systemctl daemon-reload
 systemctl enable --now sftpgo caddy ergo ergo-certs.timer unixcore-bot >/dev/null
 systemctl restart sftpgo
 systemctl reload caddy || systemctl restart caddy
-# Rehash rather than restart, so a deploy doesn't kick everyone off IRC.
+# Rehash rather than restart, so a deploy doesn't kick everyone off IRC. Certs first:
+# a rehash with a cert file missing is rejected and Ergo keeps the old config.
+scripts/ergo-certs.sh --no-reload
 systemctl reload-or-restart ergo
 systemctl restart unixcore-bot
 sleep 3
