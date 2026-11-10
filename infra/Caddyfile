@@ -55,6 +55,13 @@ unixcore.sh, www.unixcore.sh, beta.unixcore.sh {
 	import unixcore
 }
 
+# irc.unixcore.sh is the IRC hostname (Ergo on :6697, see infra/ergo.yaml). This block
+# exists so Caddy keeps a Let's Encrypt cert for it, which scripts/ergo-certs.sh hands
+# to Ergo. Browsers that wander here get sent to the hub.
+irc.unixcore.sh {
+	redir https://unixcore.sh{uri} 302
+}
+
 # The Android app uploads heart-rate readings to unixcore.sh:2096, which used to
 # reach the old box through Cloudflare. Keep that port alive here and pass it
 # through so the app needs no change.

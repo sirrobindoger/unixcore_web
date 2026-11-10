@@ -96,8 +96,9 @@ Mods: `/site guestbook list` · `/site guestbook delete <id>` ·
 
 ## IRC
 
-An Ergo IRC server runs on the VPS at **unixcore.sh:6697** (TLS only), using the
-same Let's Encrypt cert as the website. `#unixcore` there is bridged to one
+An Ergo IRC server runs on the VPS at **irc.unixcore.sh:6697** (also reachable as
+unixcore.sh:6697), TLS only, using Caddy's Let's Encrypt certs (picked by SNI). The
+`irc` DNS record is an A record to the VPS, DNS-only like the others. `#unixcore` there is bridged to one
 Discord channel by the bot (`bot/irc.ts`, with a small client in
 `bot/irc-client.ts`):
 
