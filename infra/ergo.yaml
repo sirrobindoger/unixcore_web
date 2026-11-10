@@ -14,12 +14,17 @@ server:
         # Plaintext, loopback only: the Discord bridge in the bot connects here.
         "127.0.0.1:6667":
         "[::1]:6667":
-        # Public, TLS only. On the VPS the cert is Caddy's unixcore.sh cert, copied
-        # in by scripts/ergo-certs.sh; locally it's from `ergo mkcerts`.
+        # Public, TLS only. Two certs picked by SNI: unixcore.sh (also the default for
+        # clients that send no SNI) and irc.unixcore.sh. On the VPS both are Caddy's,
+        # copied in by scripts/ergo-certs.sh; locally scripts/dev.sh makes self-signed ones.
         ":6697":
-            tls:
-                cert: tls/fullchain.pem
-                key: tls/privkey.pem
+            tls-certificates:
+                -
+                    cert: tls/fullchain.pem
+                    key: tls/privkey.pem
+                -
+                    cert: tls/irc-fullchain.pem
+                    key: tls/irc-privkey.pem
             min-tls-version: 1.2
     casemapping: "ascii"
     enforce-utf8: true

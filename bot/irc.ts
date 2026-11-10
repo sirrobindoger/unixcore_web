@@ -5,6 +5,8 @@
 // back to "<name> text" from the bridge's own nick.
 // IRC -> Discord: posted through a channel webhook with the IRC nick as the
 // username. Mentions never ping (allowedMentions: none).
+import fs from "node:fs";
+import path from "node:path";
 import {
 	type Client, type Message, type PartialMessage, type TextChannel, type Webhook,
 	ChannelType, Events,
@@ -83,6 +85,22 @@ export function webhookName(nick: string): string {
 	return n.slice(0, 80);
 }
 
+/** FNV-1a, so a nick maps to the same avatar on every restart. */
+export function nickHash(nick: string): number {
+	let h = 0x811c9dc5;
+	for (const c of nick.toLowerCase().replace(/[_`|^]+$/, "")) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
+	return h;
+}
+
+// Character avatars for IRC people in Discord: bot/templates/hub/irc/, served by
+// Caddy at /_hub/irc/ once the hub regenerates (it does on every startup).
+const AVATAR_DIR = path.join(import.meta.dir, "templates", "hub", "irc");
+const avatars = fs.existsSync(AVATAR_DIR)
+	? fs.readdirSync(AVATAR_DIR).filter(f => /\.(png|gif|jpe?g)$/i.test(f)).sort()
+	: [];
+export const avatarFor = (nick: string) =>
+	avatars.length ? `${config.publicUrl}/_hub/irc/${avatars[nickHash(nick) % avatars.length]}` : undefined;
+
 // ---------- the bridge ----------
 
 export function startIrcBridge(bot: Client) {
@@ -126,7 +144,7 @@ export function startIrcBridge(bot: Client) {
 		const ch = channel, hook = webhook;
 		queue = queue.then(() =>
 			hook
-				? hook.send({ content, username: webhookName(nick), allowedMentions: { parse: [] } })
+				? hook.send({ content, username: webhookName(nick), avatarURL: avatarFor(nick), allowedMentions: { parse: [] } })
 				: ch.send({ content: `**<${nick}>** ${content}`.slice(0, 2000), allowedMentions: { parse: [] } }),
 		).catch(e => console.warn("[irc] posting to discord failed:", (e as Error).message));
 	});

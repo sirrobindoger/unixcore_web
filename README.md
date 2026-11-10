@@ -106,6 +106,9 @@ Discord channel by the bot (`bot/irc.ts`, with a small client in
   edits within 10 minutes are sent as `(edit) ...`.
 - IRC to Discord: posted through a webhook named `unixcore irc`, one "user" per
   nick (`nick (irc)`). Mentions from IRC never ping. Joins and parts are not relayed.
+  Each nick gets a character avatar (Bocchi the Rock, Girls' Last Tour, Touhou) from
+  `bot/templates/hub/irc/`, picked by a hash of the nick so it never changes. Drop
+  more square images in there to grow the set.
 
 Turning it on:
 

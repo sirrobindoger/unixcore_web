@@ -35,7 +35,13 @@ caddy run --config "$ROOT/infra/Caddyfile.local" --adapter caddyfile 2>&1 | tag 
 # Plain on 127.0.0.1:6667, TLS on :6697 with a self-signed cert.
 if command -v ergo >/dev/null; then
 	mkdir -p data/ergo && cp infra/ergo.motd data/ergo/ergo.motd
-	[ -f data/ergo/tls/fullchain.pem ] || (mkdir -p data/ergo/tls && cd data/ergo && ergo mkcerts --conf "$ROOT/infra/ergo.yaml" --quiet)
+	if [ ! -f data/ergo/tls/irc-fullchain.pem ]; then
+		mkdir -p data/ergo/tls
+		openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj /CN=localhost \
+			-keyout data/ergo/tls/privkey.pem -out data/ergo/tls/fullchain.pem 2>/dev/null
+		cp data/ergo/tls/fullchain.pem data/ergo/tls/irc-fullchain.pem
+		cp data/ergo/tls/privkey.pem data/ergo/tls/irc-privkey.pem
+	fi
 	(cd data/ergo && ergo run --conf "$ROOT/infra/ergo.yaml" 2>&1 | tag "[ergo]  ") &
 fi
 (cd bot && bun run --watch bot.ts 2>&1 | tag "[bot]   ") &
