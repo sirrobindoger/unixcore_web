@@ -1,0 +1,6 @@
+[Unit]
+Description=Copy Caddy's unixcore.sh cert to Ergo
+
+[Service]
+Type=oneshot
+ExecStart=/srv/unixcore/scripts/ergo-certs.sh

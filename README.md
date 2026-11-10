@@ -94,6 +94,41 @@ what you want locally and not what you want in production.
 Mods: `/site guestbook list` · `/site guestbook delete <id>` ·
 `/site guestbook purge <id>` (drops every entry from that entry's IP).
 
+## IRC
+
+An Ergo IRC server runs on the VPS at **unixcore.sh:6697** (TLS only), using the
+same Let's Encrypt cert as the website. `#unixcore` there is bridged to one
+Discord channel by the bot (`bot/irc.ts`, with a small client in
+`bot/irc-client.ts`):
+
+- Discord to IRC: each person shows up as `name/d` via Ergo's RELAYMSG. Replies
+  become `name: text`; attachments become links; long messages are cut to 5 lines;
+  edits within 10 minutes are sent as `(edit) ...`.
+- IRC to Discord: posted through a webhook named `unixcore irc`, one "user" per
+  nick (`nick (irc)`). Mentions from IRC never ping. Joins and parts are not relayed.
+
+Turning it on:
+
+1. Developer Portal > the bot > Bot > enable **Message Content Intent**. Without
+   it the bot logs a warning and runs without the bridge (it does not crash).
+2. The bot needs **Manage Webhooks** in the bridged channel (otherwise it posts
+   IRC messages itself as `**<nick>** text`).
+3. In the server's `bot/.env`: `IRC_DISCORD_CHANNEL=<channel id>` and a random
+   `IRC_PASSWORD`. On first connect the bridge registers the `unixcore` nick with
+   that password and founds `#unixcore`, which makes it a chanop (RELAYMSG needs
+   that). Keep the password: changing it later locks the bridge out of its account.
+4. `scripts/deploy.sh`.
+
+On the box: binary `/usr/local/bin/ergo` (pinned in `scripts/install-ergo.sh`),
+config `/etc/ergo/ircd.yaml` (from `infra/ergo.yaml`), data and MOTD in
+`/var/lib/ergo`, unit `ergo`. `scripts/ergo-certs.sh` copies Caddy's cert in
+before Ergo starts and daily (`ergo-certs.timer`). A deploy rehashes Ergo instead
+of restarting it, so nobody gets disconnected. Logs: `journalctl -u ergo -f`.
+There are no IRC operators configured yet (see the comment in `infra/ergo.yaml`).
+
+Locally, `scripts/dev.sh` also starts Ergo if `ergo` is on your PATH (plain on
+127.0.0.1:6667).
+
 ## VPS
 
 DigitalOcean droplet `45.55.222.209`, Ubuntu 24.04. ssh alias `unixcore`

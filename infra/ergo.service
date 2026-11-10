@@ -1,0 +1,26 @@
+[Unit]
+Description=Ergo IRC server for unixcore.sh
+After=network-online.target caddy.service
+Wants=network-online.target
+
+[Service]
+User=ergo
+Group=ergo
+WorkingDirectory=/var/lib/ergo
+# "+" runs it as root: it reads Caddy's cert storage
+ExecStartPre=+/srv/unixcore/scripts/ergo-certs.sh --no-reload
+ExecStart=/usr/local/bin/ergo run --conf /etc/ergo/ircd.yaml
+# SIGHUP = rehash: reloads ircd.yaml, the MOTD and the TLS cert without dropping anyone
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+MemoryMax=150M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ergo
+
+[Install]
+WantedBy=multi-user.target

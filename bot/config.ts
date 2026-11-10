@@ -50,4 +50,18 @@ export const config = {
 		// Salts the stored IP hash. Change it and old hashes stop matching new posts.
 		ipSalt: opt("GUESTBOOK_IP_SALT", "unixcore"),
 	},
+
+	// Discord <-> IRC bridge (bot/irc.ts). Off unless IRC_DISCORD_CHANNEL is set.
+	// Needs the Message Content intent turned on for the bot in the Developer Portal.
+	irc: {
+		discordChannel: opt("IRC_DISCORD_CHANNEL", ""),
+		host: opt("IRC_HOST", "127.0.0.1"),
+		port: Number(opt("IRC_PORT", "6667")),
+		tls: opt("IRC_TLS", "false") === "true",
+		nick: opt("IRC_NICK", "unixcore"),
+		// The bridge registers this nick as an account on first connect and founds
+		// the channel with it, which gives it ops (needed for RELAYMSG).
+		password: opt("IRC_PASSWORD", ""),
+		channel: opt("IRC_CHANNEL", "#unixcore").replace(/^(?![#&])/, "#"),
+	},
 };

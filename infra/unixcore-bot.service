@@ -1,6 +1,6 @@
 [Unit]
 Description=unixcore.sh Discord bot
-After=network-online.target sftpgo.service
+After=network-online.target sftpgo.service ergo.service
 Wants=network-online.target
 
 [Service]

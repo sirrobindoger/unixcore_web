@@ -31,6 +31,13 @@ tag() { while IFS= read -r line; do printf '%s %s\n' "$1" "$line"; done; }
 
 sftpgo serve --config-dir "$ROOT/data/sftpgo" --log-file-path "" --log-level info 2>&1 | tag "[sftpgo]" &
 caddy run --config "$ROOT/infra/Caddyfile.local" --adapter caddyfile 2>&1 | tag "[caddy] " &
+# IRC is optional locally: runs if ergo is on PATH (github.com/ergochat/ergo/releases).
+# Plain on 127.0.0.1:6667, TLS on :6697 with a self-signed cert.
+if command -v ergo >/dev/null; then
+	mkdir -p data/ergo && cp infra/ergo.motd data/ergo/ergo.motd
+	[ -f data/ergo/tls/fullchain.pem ] || (mkdir -p data/ergo/tls && cd data/ergo && ergo mkcerts --conf "$ROOT/infra/ergo.yaml" --quiet)
+	(cd data/ergo && ergo run --conf "$ROOT/infra/ergo.yaml" 2>&1 | tag "[ergo]  ") &
+fi
 (cd bot && bun run --watch bot.ts 2>&1 | tag "[bot]   ") &
 
 wait
