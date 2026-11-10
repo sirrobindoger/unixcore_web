@@ -95,6 +95,19 @@
 	.list .empty a { color: #6b6b6b; }
 	.list hr { border: 0; border-top: 1px solid #333; margin: 12px 0; }
 
+	/* irc panel: same black box as the site list, narrower */
+	/* hangs under the irc button (last in the row) instead of centering */
+	.irc { width: min(340px, calc(100vw - 24px)); left: auto; right: 0; transform: none; }
+	.irc dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0 0 12px; }
+	.irc dt { color: #808080; }
+	.irc dd { margin: 0; white-space: nowrap; }
+	.irc button { all: unset; cursor: pointer; border-bottom: 1px dotted #808080; }
+	.irc button:hover { border-bottom-color: #fff; }
+	.irc button:focus-visible { outline: 2px dotted #fff; outline-offset: 2px; }
+	.irc button.copied::after { content: " copied"; color: #2fa84f; }
+	.irc p { margin: 4px 0 0; color: #808080; font-size: 13px; }
+	.irc p a:hover { color: #fff; }
+
 	footer {
 		position: relative; z-index: 1;
 		display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px;
@@ -107,10 +120,10 @@
 
 	@media (max-width: 600px) {
 		main { padding: 40px 12px; }
-		.box { padding: 28px 10px 30px; box-shadow: 0 0 0 1px #6a2a6a, 5px 5px 0 #000; }
-		.btn, summary { padding: 0 8px; gap: 6px; font-size: 12px; height: 36px; letter-spacing: -0.04em; }
-		.nav { gap: 6px; }
-		.online span { display: none; } /* just the dot + number, so all three buttons fit on one row */
+		.box { padding: 28px 6px 30px; box-shadow: 0 0 0 1px #6a2a6a, 5px 5px 0 #000; }
+		.btn, summary { padding: 0 6px; gap: 5px; font-size: 12px; height: 36px; letter-spacing: -0.04em; }
+		.nav { gap: 4px; }
+		.online span { display: none; } /* just the dot + number, so all four buttons fit on one row (down to 360px wide) */
 		.list { padding: 12px 12px; font-size: 12px; }
 		.list ul { columns: 3; column-gap: 10px; }
 		.list a { padding: 2px 0; }
@@ -133,6 +146,18 @@
 		</details>
 		<a class="btn" href="https://discord.gg/dP8xNKbzcV">discord <span class="online" id="online"></span></a>
 		<a class="btn" href="/guestbook">guestbook</a>
+		<details id="irc">
+			<summary>irc</summary>
+			<div class="list irc">
+				<dl>
+					<dt>server</dt><dd><button data-copy>irc.unixcore.sh</button></dd>
+					<dt>port</dt><dd><button data-copy>6697</button> (tls)</dd>
+					<dt>channel</dt><dd><button data-copy>#unixcore</button></dd>
+				</dl>
+				<p><a href="ircs://irc.unixcore.sh:6697/%23unixcore">open in your irc app</a></p>
+				<p>bridged to the discord</p>
+			</div>
+		</details>
 	</div>
 </div>
 </main>
@@ -144,15 +169,39 @@
 </footer>
 
 <script>
-	// close the site list on Escape or a click anywhere else
+	// dropdowns (site list, irc): one open at a time; Escape or a click anywhere else closes them
+	const drops = [...document.querySelectorAll(".nav details")];
 	const sites = document.getElementById("sites");
 	// the list never makes the page scroll: it stops 12px above the bottom of the screen and scrolls inside itself if it has to
 	const list = sites.querySelector(".list");
 	const fit = () => { if (sites.open) list.style.maxHeight = Math.max(160, innerHeight - list.getBoundingClientRect().top - 12) + "px"; };
 	sites.addEventListener("toggle", fit);
 	addEventListener("resize", fit);
-	document.addEventListener("click", e => { if (sites.open && !sites.contains(e.target)) sites.open = false; });
-	document.addEventListener("keydown", e => { if (e.key === "Escape" && sites.open) { sites.open = false; sites.querySelector("summary").focus(); } });
+	for (const d of drops) d.addEventListener("toggle", () => { if (d.open) for (const o of drops) if (o !== d) o.open = false; });
+	document.addEventListener("click", e => { for (const d of drops) if (d.open && !d.contains(e.target)) d.open = false; });
+	document.addEventListener("keydown", e => {
+		if (e.key !== "Escape") return;
+		for (const d of drops) if (d.open) { d.open = false; d.querySelector("summary").focus(); }
+	});
+
+	// irc panel: click a value to copy it
+	// (navigator.clipboard needs https and focus; the hidden-textarea fallback covers the rest)
+	const copy = text => navigator.clipboard?.writeText(text).then(() => true, legacyCopy.bind(null, text)) ?? Promise.resolve(legacyCopy(text));
+	function legacyCopy(text) {
+		const t = Object.assign(document.createElement("textarea"), { value: text });
+		t.style.cssText = "position:fixed;opacity:0";
+		document.body.append(t); t.select();
+		const ok = document.execCommand("copy");
+		t.remove();
+		return ok;
+	}
+	for (const b of document.querySelectorAll("[data-copy]")) b.addEventListener("click", () => {
+		copy(b.textContent).then(ok => {
+			if (!ok) return;
+			b.classList.add("copied");
+			setTimeout(() => b.classList.remove("copied"), 1500);
+		});
+	});
 
 	// live "N online" from Discord's public invite endpoint; if it fails the button just says "discord"
 	fetch("https://discord.com/api/v10/invites/dP8xNKbzcV?with_counts=true")
