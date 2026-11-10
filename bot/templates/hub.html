@@ -73,6 +73,19 @@
 	.online { display: none; align-items: center; gap: 6px; color: #404040; font-weight: normal; }
 	.online::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2fa84f; box-shadow: inset -1px -1px 0 #1a6b30; }
 
+	/* little "!" on the guestbook button's top-right corner when there are entries newer than the gb_read cookie */
+	#gb { position: relative; }
+	.new {
+		position: absolute; top: -8px; right: -8px;
+		width: 18px; height: 18px;
+		display: flex; align-items: center; justify-content: center;
+		background: #d62020; color: #fff;
+		border: 1px solid #000; box-shadow: 1px 1px 0 #000;
+		font: bold 12px/1 Verdana, Tahoma, "DejaVu Sans", sans-serif;
+		text-shadow: none;
+	}
+	.new[hidden] { display: none; }
+
 	summary { list-style: none; }
 	summary::-webkit-details-marker { display: none; }
 	summary::after { content: ""; width: 7px; height: 7px; margin-top: -4px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); transition: transform .15s; }
@@ -145,7 +158,7 @@
 			</div>
 		</details>
 		<a class="btn" href="https://discord.gg/dP8xNKbzcV">discord <span class="online" id="online"></span></a>
-		<a class="btn" href="/guestbook">guestbook</a>
+		<a class="btn" href="/guestbook" id="gb">guestbook<span class="new" id="gb-new" hidden title="new guestbook entries">!</span></a>
 		<details id="irc">
 			<summary>irc</summary>
 			<div class="list irc">
@@ -202,6 +215,16 @@
 			setTimeout(() => b.classList.remove("copied"), 1500);
 		});
 	});
+
+	// guestbook badge: the guestbook page sets gb_read to the newest entry id when you view it;
+	// show "!" when the newest entry now is past that (or you've never opened it)
+	fetch("/guestbook/latest", { cache: "no-store" })
+		.then(r => r.ok ? r.json() : Promise.reject())
+		.then(({ id }) => {
+			const read = Number(document.cookie.match(/(?:^|;\s*)gb_read=(\d+)/)?.[1] ?? 0);
+			if (id > read) document.getElementById("gb-new").hidden = false;
+		})
+		.catch(() => {});
 
 	// live "N online" from Discord's public invite endpoint; if it fails the button just says "discord"
 	fetch("https://discord.com/api/v10/invites/dP8xNKbzcV?with_counts=true")

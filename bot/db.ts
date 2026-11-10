@@ -111,6 +111,9 @@ export const Guestbook = {
 		db.query<GuestbookRow, [number]>("SELECT * FROM guestbook ORDER BY id DESC LIMIT ?").all(limit),
 	count: () =>
 		db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM guestbook").get()!.n,
+	/** Id of the newest entry, 0 when empty. */
+	latestId: () =>
+		db.query<{ id: number | null }, []>("SELECT MAX(id) AS id FROM guestbook").get()!.id ?? 0,
 	get: (id: number) =>
 		db.query<GuestbookRow, [number]>("SELECT * FROM guestbook WHERE id = ?").get(id),
 	insert: (name: string, url: string | null, message: string, ipHash: string) =>

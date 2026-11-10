@@ -82,9 +82,22 @@ function page(opts: { notice?: string; form?: Form }, status = 200) {
 	});
 	return new Response(html, {
 		status,
-		headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"cache-control": "no-store",
+			// The hub reads this to decide whether to show the "new entries" badge on the guestbook button.
+			"set-cookie": `${READ_COOKIE}=${Guestbook.latestId()}; Path=/; Max-Age=31536000; SameSite=Lax`,
+		},
 	});
 }
+
+const READ_COOKIE = "gb_read";
+
+/** Newest entry id, polled by the hub page and compared against the gb_read cookie. */
+const latest = () =>
+	new Response(JSON.stringify({ id: Guestbook.latestId() }), {
+		headers: { "content-type": "application/json", "cache-control": "no-store" },
+	});
 
 const bad = (msg: string, form: Form) => page({ notice: `<p class="err">${esc(msg)}</p>`, form }, 400);
 const thanks = `<p class="ok">thanks for signing!</p>`;
@@ -134,6 +147,7 @@ export function startGuestbook() {
 		maxRequestBodySize: 16 * 1024,
 		async fetch(req, srv) {
 			const u = new URL(req.url);
+			if (u.pathname === "/guestbook/latest" && (req.method === "GET" || req.method === "HEAD")) return latest();
 			if (u.pathname !== "/guestbook" && u.pathname !== "/guestbook/") return new Response("not found", { status: 404 });
 			if (req.method === "GET" || req.method === "HEAD") return page({ notice: u.searchParams.has("signed") ? thanks : "" });
 			if (req.method === "POST") return handlePost(req, clientIp(req, srv));

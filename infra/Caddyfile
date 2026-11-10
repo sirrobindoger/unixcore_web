@@ -28,7 +28,7 @@
 	rewrite /terms/ /_hub/terms.html
 
 	# Guestbook: served by the bot process (bot/guestbook.ts) on localhost.
-	@guestbook path /guestbook /guestbook/
+	@guestbook path /guestbook /guestbook/ /guestbook/latest
 	reverse_proxy @guestbook 127.0.0.1:8090
 
 	# never serve dotfiles (.DS_Store, .htaccess-alikes, etc.)
