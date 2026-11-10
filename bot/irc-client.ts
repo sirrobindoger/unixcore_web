@@ -1,6 +1,6 @@
 // A deliberately small IRC client: just what the Discord bridge needs to talk to
 // our own Ergo over loopback. Handles CAP/SASL PLAIN, PING, reconnect with backoff,
-// and tracks whether we hold ops in the bridged channel (RELAYMSG needs it).
+// and tracks whether we hold ops in each bridged channel (RELAYMSG needs it).
 import net from "node:net";
 import tls from "node:tls";
 import { EventEmitter } from "node:events";
@@ -44,13 +44,16 @@ export type IrcOptions = {
 	nick: string;
 	/** SASL/NickServ password. With one set, the client registers its account on first connect. */
 	password: string;
-	channel: string;
+	/** Channels to join, found (ChanServ REGISTER) and hold ops in. */
+	channels: string[];
+	/** Oper block name to OPER with (password = `password`). Default "bridge". */
+	operName?: string;
 };
 
 /**
  * Events:
  *  - "message" (nick, target, text, isAction) for PRIVMSG/CTCP ACTION
- *  - "ready" once joined to the channel
+ *  - "ready" (channel) once joined to each channel
  *  - "line" (IrcLine) for everything, for debugging
  */
 export class IrcClient extends EventEmitter {
@@ -58,8 +61,10 @@ export class IrcClient extends EventEmitter {
 	nick: string;
 	registered = false;
 	loggedIn = false;
-	/** Do we have +o (or higher) in the channel? */
-	isOp = false;
+	/** Logged in as an IRC operator (OPER), which lets us RELAYMSG anywhere unthrottled. */
+	isOper = false;
+	/** Lowercased channels where we have +o or higher. */
+	private ops = new Set<string>();
 	/** Server offers draft/relaymsg; value is the separator list (e.g. "/"). */
 	relaySeparators = "";
 	private buf = "";
@@ -67,8 +72,8 @@ export class IrcClient extends EventEmitter {
 	private stopped = false;
 	private lastSeen = Date.now();
 	private pinger: ReturnType<typeof setInterval> | null = null;
-	private joined = false;
-	private claimedChannel = false;
+	private joined = new Set<string>();
+	private claimed = new Set<string>();
 
 	constructor(public opts: IrcOptions) {
 		super();
@@ -76,7 +81,20 @@ export class IrcClient extends EventEmitter {
 	}
 
 	get connected() { return this.registered && !!this.sock && !this.sock.destroyed; }
-	get canRelay() { return this.connected && this.isOp && this.relaySeparators.includes("/"); }
+	isOp(channel: string) { return this.ops.has(channel.toLowerCase()); }
+	canRelay(channel: string) {
+		return this.connected && this.relaySeparators.includes("/") && (this.isOper || this.isOp(channel));
+	}
+	private ours(channel: string | undefined) { return !!channel && this.opts.channels.some(c => eq(c, channel)); }
+	// Debounced: ChanServ answers several notices at once and each would trigger this.
+	private namesTimer: ReturnType<typeof setTimeout> | null = null;
+	private namesAll() {
+		if (this.namesTimer) return;
+		this.namesTimer = setTimeout(() => {
+			this.namesTimer = null;
+			this.send(`NAMES ${this.opts.channels.join(",")}`);
+		}, 1000);
+	}
 
 	start() {
 		this.stopped = false;
@@ -100,7 +118,8 @@ export class IrcClient extends EventEmitter {
 
 	private connect() {
 		const { host, port } = this.opts;
-		this.registered = this.loggedIn = this.isOp = this.joined = this.claimedChannel = false;
+		this.registered = this.loggedIn = this.isOper = false;
+		this.ops.clear(); this.joined.clear(); this.claimed.clear();
 		this.relaySeparators = "";
 		this.nick = this.opts.nick;
 		this.buf = "";
@@ -143,15 +162,18 @@ export class IrcClient extends EventEmitter {
 	}
 
 	/**
-	 * Once logged in and in the channel: register it to our account. Harmless if it's
+	 * Once logged in and in a channel: register it to our account. Harmless if it's
 	 * already ours; makes us founder (and so op) if nobody owns it. Then ask for ops
 	 * in case we joined a channel that already had people in it.
 	 */
-	private claimChannel() {
-		if (!this.joined || !this.loggedIn || this.claimedChannel) return;
-		this.claimedChannel = true;
-		this.privmsg("ChanServ", `REGISTER ${this.opts.channel}`);
-		this.privmsg("ChanServ", `OP ${this.opts.channel}`);
+	private claimChannels() {
+		if (!this.loggedIn) return;
+		for (const c of this.joined) {
+			if (this.claimed.has(c)) continue;
+			this.claimed.add(c);
+			this.privmsg("ChanServ", `REGISTER ${c}`);
+			this.privmsg("ChanServ", `OP ${c}`);
+		}
 	}
 
 	private handle(m: IrcLine) {
@@ -186,7 +208,7 @@ export class IrcClient extends EventEmitter {
 					this.send(`AUTHENTICATE ${Buffer.from(`${nick}\0${nick}\0${password}`).toString("base64")}`);
 				}
 				break;
-			case "900": this.loggedIn = true; this.claimChannel(); break; // RPL_LOGGEDIN (SASL or after NickServ REGISTER)
+			case "900": this.loggedIn = true; this.claimChannels(); break; // RPL_LOGGEDIN (SASL or after NickServ REGISTER)
 			case "903": this.send("CAP END"); break;            // SASL success
 			case "904": case "905": case "906":                 // SASL failed: account probably doesn't exist yet
 				this.send("CAP END"); break;
@@ -196,10 +218,19 @@ export class IrcClient extends EventEmitter {
 				this.nick = p[0] ?? this.nick;
 				console.log(`[irc] connected to ${this.opts.host}:${this.opts.port} as ${this.nick}${this.loggedIn ? " (logged in)" : ""}`);
 				if (this.opts.password && !this.loggedIn) {
-					// First run: create the bridge's account so it can found the channel.
+					// First run: create the bridge's account so it can found the channels.
 					this.privmsg("NickServ", `REGISTER ${this.opts.password}`);
 				}
-				this.send(`JOIN ${this.opts.channel}`);
+				// Oper login for the flood-throttle exemption; harmless if not configured (491).
+				if (this.opts.password) this.send(`OPER ${this.opts.operName ?? "bridge"} ${this.opts.password}`);
+				this.send(`JOIN ${this.opts.channels.join(",")}`);
+				break;
+			case "381": // RPL_YOUREOPER
+				this.isOper = true;
+				console.log("[irc] oper: relaying without flood throttling");
+				break;
+			case "464": case "491": // bad oper password / no oper block for us
+				console.warn(`[irc] OPER refused (${m.command}); relaying as chanop, subject to flood throttling`);
 				break;
 			case "433": // nick in use (only before registration completes)
 				if (!this.registered) { this.nick += "_"; this.send(`NICK ${this.nick}`); }
@@ -209,28 +240,34 @@ export class IrcClient extends EventEmitter {
 				break;
 
 			case "JOIN":
-				if (m.nick === this.nick && eq(p[0], this.opts.channel)) {
-					this.joined = true;
-					this.claimChannel();
-					this.emit("ready");
+				if (m.nick === this.nick && this.ours(p[0])) {
+					this.joined.add(p[0]!.toLowerCase());
+					this.claimChannels();
+					this.emit("ready", p[0]);
 				}
 				break;
 			case "353": { // NAMES: "= #chan :~nick @other"
-				if (!eq(p[2], this.opts.channel)) break;
+				const ch = p[2];
+				if (!this.ours(ch)) break;
 				for (const n of (p[3] ?? "").split(" ")) {
 					const bare = n.replace(/^[~&@%+]+/, "");
-					if (bare === this.nick) this.isOp = /^[~&@]/.test(n);
+					if (bare !== this.nick) continue;
+					if (/^[~&@]/.test(n)) this.ops.add(ch!.toLowerCase());
+					else this.ops.delete(ch!.toLowerCase());
 				}
 				break;
 			}
 			case "MODE":
 				// Something changed modes involving us: re-read NAMES rather than parse mode strings.
-				if (eq(p[0], this.opts.channel) && p.slice(2).includes(this.nick)) this.send(`NAMES ${this.opts.channel}`);
+				if (this.ours(p[0]) && p.slice(2).includes(this.nick)) this.send(`NAMES ${p[0]}`);
 				break;
 			case "KICK":
-				if (eq(p[0], this.opts.channel) && p[1] === this.nick) {
-					this.isOp = false;
-					setTimeout(() => this.send(`JOIN ${this.opts.channel}`), 10_000);
+				if (this.ours(p[0]) && p[1] === this.nick) {
+					const ch = p[0]!;
+					this.ops.delete(ch.toLowerCase());
+					this.joined.delete(ch.toLowerCase());
+					this.claimed.delete(ch.toLowerCase());
+					setTimeout(() => this.send(`JOIN ${ch}`), 10_000);
 				}
 				break;
 			case "NOTICE":
@@ -239,15 +276,15 @@ export class IrcClient extends EventEmitter {
 					// Ergo confirms a fresh NickServ REGISTER with this notice, not RPL_LOGGEDIN.
 					if (m.nick === "NickServ" && /now logged in/i.test(p[1] ?? "")) {
 						this.loggedIn = true;
-						this.claimChannel();
+						this.claimChannels();
 					}
 					// ChanServ REGISTER/OP answered: re-check whether we hold ops.
-					if (m.nick === "ChanServ") this.send(`NAMES ${this.opts.channel}`);
+					if (m.nick === "ChanServ") this.namesAll();
 				}
 				break;
 			case "FAIL":
 				console.warn(`[irc] FAIL ${p.join(" ")}`);
-				if (p[0] === "RELAYMSG") { this.isOp = false; this.send(`NAMES ${this.opts.channel}`); }
+				if (p[0] === "RELAYMSG") this.namesAll();
 				break;
 
 			case "PRIVMSG": {

@@ -7,6 +7,8 @@ Wants=network-online.target
 User=ergo
 Group=ergo
 WorkingDirectory=/var/lib/ergo
+# ERGO__OPERS (the bridge's oper login). Written by scripts/deploy.sh; not in the repo.
+EnvironmentFile=-/etc/ergo/ergo.env
 # "+" runs it as root: it reads Caddy's cert storage
 ExecStartPre=+/srv/unixcore/scripts/ergo-certs.sh --no-reload
 ExecStart=/usr/local/bin/ergo run --conf /etc/ergo/ircd.yaml

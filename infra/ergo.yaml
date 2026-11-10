@@ -102,9 +102,16 @@ channels:
         enabled: true
         max-channels-per-account: 15
 
-# No IRC operators yet. To add one: `ergo genpasswd`, then an `opers:` block as in
-# `ergo defaultconfig`, then `systemctl reload ergo`.
+# Operators are not listed here (the repo is public). The Discord bridge's oper
+# login comes from ERGO__OPERS in /etc/ergo/ergo.env, which scripts/deploy.sh writes
+# from the bridge password; see infra/ergo.service. To add a human oper, generate a
+# hash with `ergo genpasswd` and add it to that same JSON, then restart ergo.
 oper-classes:
+    # The bridge: exempt from flood throttling (it speaks for every Discord user)
+    # and allowed to RELAYMSG in any channel.
+    "bridge":
+        title: Discord Bridge
+        capabilities: ["nofakelag", "relaymsg"]
     "server-admin":
         title: Server Admin
         capabilities: ["kill", "ban", "nofakelag", "relaymsg", "sajoin", "samode", "snomasks",

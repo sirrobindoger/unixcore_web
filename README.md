@@ -98,7 +98,10 @@ Mods: `/site guestbook list` · `/site guestbook delete <id>` ·
 
 An Ergo IRC server runs on the VPS at **irc.unixcore.sh:6697** (also reachable as
 unixcore.sh:6697), TLS only, using Caddy's Let's Encrypt certs (picked by SNI). The
-`irc` DNS record is an A record to the VPS, DNS-only like the others. `#unixcore` there is bridged to one
+`irc` DNS record is an A record to the VPS, DNS-only like the others.
+Bridged pairs (`IRC_BRIDGES` in the server's `bot/.env`): Discord ┃「-irc-」 <-> `#irc`,
+╭「-general-」 <-> `#general`. `#irc` used to be `#unixcore`; Ergo's RENAME kept its
+registration and ops. `#unixcore` there is bridged to one
 Discord channel by the bot (`bot/irc.ts`, with a small client in
 `bot/irc-client.ts`):
 
@@ -117,10 +120,12 @@ Turning it on:
    it the bot logs a warning and runs without the bridge (it does not crash).
 2. The bot needs **Manage Webhooks** in the bridged channel (otherwise it posts
    IRC messages itself as `**<nick>** text`).
-3. In the server's `bot/.env`: `IRC_DISCORD_CHANNEL=<channel id>` and a random
-   `IRC_PASSWORD`. On first connect the bridge registers the `unixcore` nick with
-   that password and founds `#unixcore`, which makes it a chanop (RELAYMSG needs
-   that). Keep the password: changing it later locks the bridge out of its account.
+3. In the server's `bot/.env`: `IRC_BRIDGES="<discord channel id>=#channel,..."` and a
+   random `IRC_PASSWORD`. On first connect the bridge registers the `unixcore` nick
+   with that password and founds each channel, which makes it a chanop. Keep the
+   password: changing it later locks the bridge out of its account. Deploy also
+   writes `/etc/ergo/ergo.env` with an oper login hashed from it, which exempts the
+   bridge from Ergo's flood throttling (otherwise a busy channel queues up).
 4. `scripts/deploy.sh`.
 
 On the box: binary `/usr/local/bin/ergo` (pinned in `scripts/install-ergo.sh`),
@@ -128,7 +133,7 @@ config `/etc/ergo/ircd.yaml` (from `infra/ergo.yaml`), data and MOTD in
 `/var/lib/ergo`, unit `ergo`. `scripts/ergo-certs.sh` copies Caddy's cert in
 before Ergo starts and daily (`ergo-certs.timer`). A deploy rehashes Ergo instead
 of restarting it, so nobody gets disconnected. Logs: `journalctl -u ergo -f`.
-There are no IRC operators configured yet (see the comment in `infra/ergo.yaml`).
+The only IRC operator is the bridge (see the comment in `infra/ergo.yaml`).
 
 Locally, `scripts/dev.sh` also starts Ergo if `ergo` is on your PATH (plain on
 127.0.0.1:6667).

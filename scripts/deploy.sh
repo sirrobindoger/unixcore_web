@@ -27,6 +27,17 @@ install -d -m755 /etc/ergo
 install -m644 infra/ergo.yaml /etc/ergo/ircd.yaml
 install -m644 -o ergo -g ergo infra/ergo.motd /var/lib/ergo/ergo.motd
 install -m644 infra/ergo.service infra/ergo-certs.service infra/ergo-certs.timer /etc/systemd/system/
+# The bridge's oper login (flood-throttle exemption), hashed from IRC_PASSWORD. Only
+# written once; a new env file needs a restart, not a rehash, to take effect.
+ERGO_RESTART=0
+if [ ! -f /etc/ergo/ergo.env ] && grep -q '^IRC_PASSWORD=.' bot/.env; then
+	PW=\$(grep '^IRC_PASSWORD=' bot/.env | cut -d= -f2-)
+	HASH=\$(printf '%s\n%s\n' "\$PW" "\$PW" | /usr/local/bin/ergo genpasswd 2>/dev/null | tail -1)
+	umask 077
+	printf "ERGO__OPERS='{\"bridge\": {\"class\": \"bridge\", \"password\": \"%s\"}}'\n" "\$HASH" > /etc/ergo/ergo.env
+	chown root:ergo /etc/ergo/ergo.env; chmod 640 /etc/ergo/ergo.env
+	ERGO_RESTART=1
+fi
 mkdir -p sites suspended trash data
 chown -R sftpgo:sftpgo $DEST
 chmod 750 $DEST/bot; chmod 640 bot/.env
@@ -40,7 +51,7 @@ systemctl reload caddy || systemctl restart caddy
 # Rehash rather than restart, so a deploy doesn't kick everyone off IRC. Certs first:
 # a rehash with a cert file missing is rejected and Ergo keeps the old config.
 scripts/ergo-certs.sh --no-reload
-systemctl reload-or-restart ergo
+if [ \$ERGO_RESTART = 1 ]; then systemctl restart ergo; else systemctl reload-or-restart ergo; fi
 systemctl restart unixcore-bot
 sleep 3
 systemctl --no-pager --lines=0 status sftpgo caddy ergo unixcore-bot | grep -E '^(●|×|.*Active:)'

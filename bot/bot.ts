@@ -42,13 +42,13 @@ export const menus = new Map<string, DiscordMenu>();
 // intent. Asking for it without the portal toggle makes login fail outright, so
 // check the app's flags first and run without the bridge if it's off.
 async function bridgeIntentsOk(): Promise<boolean> {
-	if (!config.irc.discordChannel) return false;
+	if (!config.irc.links.length) return false;
 	const r = await fetch("https://discord.com/api/v10/applications/@me", { headers: { authorization: `Bot ${config.token}` } })
 		.catch(() => null);
 	const flags = r?.ok ? ((await r.json()) as { flags?: number }).flags ?? 0 : 0;
 	const MESSAGE_CONTENT = (1 << 18) | (1 << 19); // GATEWAY_MESSAGE_CONTENT and its _LIMITED variant
 	if (flags & MESSAGE_CONTENT) return true;
-	console.warn("[irc] IRC_DISCORD_CHANNEL is set but the Message Content intent is off for this bot " +
+	console.warn("[irc] IRC_BRIDGES is set but the Message Content intent is off for this bot " +
 		"(Developer Portal > Bot > Privileged Gateway Intents). Bridge disabled.");
 	return false;
 }

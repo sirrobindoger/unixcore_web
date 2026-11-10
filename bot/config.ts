@@ -51,17 +51,31 @@ export const config = {
 		ipSalt: opt("GUESTBOOK_IP_SALT", "unixcore"),
 	},
 
-	// Discord <-> IRC bridge (bot/irc.ts). Off unless IRC_DISCORD_CHANNEL is set.
+	// Discord <-> IRC bridge (bot/irc.ts). Off unless IRC_BRIDGES (or the older
+	// IRC_DISCORD_CHANNEL + IRC_CHANNEL pair) is set.
 	// Needs the Message Content intent turned on for the bot in the Developer Portal.
 	irc: {
-		discordChannel: opt("IRC_DISCORD_CHANNEL", ""),
+		links: parseIrcBridges(),
 		host: opt("IRC_HOST", "127.0.0.1"),
 		port: Number(opt("IRC_PORT", "6667")),
 		tls: opt("IRC_TLS", "false") === "true",
 		nick: opt("IRC_NICK", "unixcore"),
 		// The bridge registers this nick as an account on first connect and founds
-		// the channel with it, which gives it ops (needed for RELAYMSG).
+		// the channels with it, which gives it ops (needed for RELAYMSG).
 		password: opt("IRC_PASSWORD", ""),
-		channel: opt("IRC_CHANNEL", "#unixcore").replace(/^(?![#&])/, "#"),
 	},
 };
+
+/**
+ * IRC_BRIDGES="<discord channel id>=#irc-channel,<id>=#other" (quote it: # starts
+ * a comment in .env). Falls back to IRC_DISCORD_CHANNEL + IRC_CHANNEL for one pair.
+ */
+function parseIrcBridges(): { discordId: string; ircChannel: string }[] {
+	const raw = process.env.IRC_BRIDGES
+		|| (process.env.IRC_DISCORD_CHANNEL ? `${process.env.IRC_DISCORD_CHANNEL}=${process.env.IRC_CHANNEL || "#unixcore"}` : "");
+	return raw.split(",").map(s => s.trim()).filter(Boolean).map(pair => {
+		const [id = "", chan = ""] = pair.split("=").map(x => x.trim());
+		assert(/^\d+$/.test(id) && chan, `IRC_BRIDGES entry "${pair}" should look like 123456789=#channel`);
+		return { discordId: id, ircChannel: chan.replace(/^(?![#&])/, "#") };
+	});
+}

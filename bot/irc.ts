@@ -1,4 +1,5 @@
-// Discord <-> IRC bridge between one Discord channel and one channel on our Ergo.
+// Discord <-> IRC bridge: pairs of Discord channel <-> channel on our Ergo
+// (IRC_BRIDGES in bot/.env).
 //
 // Discord -> IRC: each message goes out with RELAYMSG as "name/d", so IRC sees one
 // nick per Discord person. Without ops (or on a server without RELAYMSG) it falls
@@ -103,62 +104,72 @@ export const avatarFor = (nick: string) =>
 
 // ---------- the bridge ----------
 
+type Link = { discordId: string; ircChannel: string; channel: TextChannel; webhook: Webhook | null };
+
 export function startIrcBridge(bot: Client) {
 	const cfg = config.irc;
 	const irc = new IrcClient({
 		host: cfg.host, port: cfg.port, tls: cfg.tls,
-		nick: cfg.nick, password: cfg.password, channel: cfg.channel,
+		nick: cfg.nick, password: cfg.password, channels: cfg.links.map(l => l.ircChannel),
 	});
 
-	let channel: TextChannel | null = null;
-	let webhook: Webhook | null = null;
+	// Filled in once Discord is ready; links whose Discord channel can't be found are dropped.
+	const byDiscord = new Map<string, Link>();
+	const byIrc = new Map<string, Link>(); // lowercased IRC channel
 	// IRC -> Discord sends run one at a time so they arrive in order.
 	let queue: Promise<unknown> = Promise.resolve();
 
 	bot.once(Events.ClientReady, async client => {
-		const ch = await client.channels.fetch(cfg.discordChannel).catch(() => null);
-		if (!ch || ch.type !== ChannelType.GuildText) {
-			console.error(`[irc] IRC_DISCORD_CHANNEL ${cfg.discordChannel} isn't a text channel the bot can see; bridge off`);
-			return;
+		for (const { discordId, ircChannel } of cfg.links) {
+			const ch = await client.channels.fetch(discordId).catch(() => null);
+			if (!ch || ch.type !== ChannelType.GuildText) {
+				console.error(`[irc] Discord channel ${discordId} isn't a text channel the bot can see; not bridging ${ircChannel}`);
+				continue;
+			}
+			let webhook: Webhook | null = null;
+			try {
+				const hooks = await ch.fetchWebhooks();
+				webhook = hooks.find(w => w.owner?.id === client.user.id && w.name === WEBHOOK_NAME)
+					?? await ch.createWebhook({ name: WEBHOOK_NAME, reason: "IRC bridge" });
+			} catch (e) {
+				console.warn(`[irc] no webhook in #${ch.name} (bot needs Manage Webhooks); IRC messages will be posted by the bot itself`, (e as Error).message);
+			}
+			const link = { discordId, ircChannel, channel: ch, webhook };
+			byDiscord.set(discordId, link);
+			byIrc.set(ircChannel.toLowerCase(), link);
+			console.log(`[irc] bridging #${ch.name} <-> ${ircChannel}`);
 		}
-		channel = ch;
-		try {
-			const hooks = await ch.fetchWebhooks();
-			webhook = hooks.find(w => w.owner?.id === client.user.id && w.name === WEBHOOK_NAME)
-				?? await ch.createWebhook({ name: WEBHOOK_NAME, reason: "IRC bridge" });
-		} catch (e) {
-			console.warn(`[irc] no webhook in #${ch.name} (bot needs Manage Webhooks); IRC messages will be posted by the bot itself`, (e as Error).message);
-		}
-		console.log(`[irc] bridging #${ch.name} <-> ${cfg.channel} on ${cfg.host}:${cfg.port}`);
-		irc.start();
+		if (byDiscord.size) irc.start();
 	});
 
 	// ---- IRC -> Discord
 	irc.on("message", (nick: string, target: string, text: string, isAction: boolean) => {
-		if (!channel || target.toLowerCase() !== cfg.channel.toLowerCase()) return;
+		const link = byIrc.get(target.toLowerCase());
+		if (!link) return;
 		// Our own nick, and relayed "name/d" nicks (ours or another bridge's): never echo back.
 		if (nick === irc.nick || /[\/]/.test(nick)) return;
 		const clean = stripIrcFormatting(text).trim();
 		if (!clean) return;
 		const content = (isAction ? `_${clean}_` : clean).slice(0, 2000);
-		const ch = channel, hook = webhook;
+		const { channel, webhook } = link;
 		queue = queue.then(() =>
-			hook
-				? hook.send({ content, username: webhookName(nick), avatarURL: avatarFor(nick), allowedMentions: { parse: [] } })
-				: ch.send({ content: `**<${nick}>** ${content}`.slice(0, 2000), allowedMentions: { parse: [] } }),
+			webhook
+				? webhook.send({ content, username: webhookName(nick), avatarURL: avatarFor(nick), allowedMentions: { parse: [] } })
+				: channel.send({ content: `**<${nick}>** ${content}`.slice(0, 2000), allowedMentions: { parse: [] } }),
 		).catch(e => console.warn("[irc] posting to discord failed:", (e as Error).message));
 	});
 
 	// ---- Discord -> IRC
 	const relayable = (m: Message | PartialMessage) =>
-		m.channelId === cfg.discordChannel && !m.author?.bot && !m.webhookId && !m.system;
+		byDiscord.has(m.channelId) && !m.author?.bot && !m.webhookId && !m.system;
 
 	async function displayName(m: Message) {
 		return m.member?.displayName ?? m.author.globalName ?? m.author.username;
 	}
 
 	async function sendToIrc(m: Message, prefix = "") {
-		if (!irc.connected) return;
+		const target = byDiscord.get(m.channelId)?.ircChannel;
+		if (!target || !irc.connected) return;
 		const name = ircNick(await displayName(m), m.author.id);
 
 		// "name: text" for replies, IRC-style addressing.
@@ -178,9 +189,10 @@ export function startIrcBridge(bot: Client) {
 		if (!lines.length) return;
 		lines[0] = prefix + lines[0];
 
+		const relay = irc.canRelay(target);
 		for (const line of lines) {
-			if (irc.canRelay) irc.relaymsg(cfg.channel, `${name}/d`, line);
-			else irc.privmsg(cfg.channel, `<${name}> ${line}`);
+			if (relay) irc.relaymsg(target, `${name}/d`, line);
+			else irc.privmsg(target, `<${name}> ${line}`);
 		}
 	}
 
