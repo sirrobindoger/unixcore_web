@@ -102,7 +102,7 @@ export class IrcClient extends EventEmitter {
 		this.connect();
 	}
 
-	/** Skip the backoff wait and try now (used right after /irc on). */
+	/** Skip the backoff wait and try now (used right after /toggle_irc turns IRC on). */
 	reconnectNow() {
 		if (this.stopped || this.connected || !this.retryTimer) return;
 		clearTimeout(this.retryTimer);

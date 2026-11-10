@@ -9,7 +9,7 @@ Group=ergo
 WorkingDirectory=/var/lib/ergo
 # ERGO__OPERS (the bridge's oper login). Written by scripts/deploy.sh; not in the repo.
 EnvironmentFile=-/etc/ergo/ergo.env
-# Stays off while the unix team has switched IRC off with /irc off (survives reboots
+# Stays off while the unix team has switched IRC off with /toggle_irc (survives reboots
 # and deploys); see infra/ergo-toggle.path.
 ExecCondition=+/bin/sh -c '! grep -qsx off /srv/unixcore/data/irc-state'
 # "+" runs it as root: it reads Caddy's cert storage

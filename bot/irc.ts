@@ -106,7 +106,7 @@ export const avatarFor = (nick: string) =>
 
 type Link = { discordId: string; ircChannel: string; channel: TextChannel; webhook: Webhook | null };
 
-/** The running bridge's IRC connection, for /irc on|off. Null when the bridge is off. */
+/** The running bridge's IRC connection, for /toggle_irc. Null when the bridge is off. */
 export let bridgeIrc: IrcClient | null = null;
 
 export function startIrcBridge(bot: Client) {

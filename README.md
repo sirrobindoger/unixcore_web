@@ -128,9 +128,8 @@ Turning it on:
    bridge from Ergo's flood throttling (otherwise a busy channel queues up).
 4. `scripts/deploy.sh`.
 
-**Switching it off:** `/irc off` and `/irc on` (Administrators and the role in
-`IRC_ADMIN_ROLE`, the unix team) shut the server down or bring it back; `/irc status`
-works for anyone. The bot writes `on`/`off` to `data/irc-state`, and the root
+**Switching it off:** `/toggle_irc` (Administrators and the role in `IRC_ADMIN_ROLE`,
+the unix team) shuts the server down if it's running, or brings it back if it's off. The bot writes `on`/`off` to `data/irc-state`, and the root
 `ergo-toggle.path` unit starts or stops Ergo to match. While it says `off`, Ergo
 stays off through reboots and deploys (`ExecCondition` in `infra/ergo.service`).
 

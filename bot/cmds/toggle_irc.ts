@@ -1,4 +1,4 @@
-// /irc on|off|status: lets the unix team switch the IRC server off and back on.
+// /toggle_irc: lets the unix team switch the IRC server off and back on.
 // The bot can't touch systemd itself (it runs unprivileged), so it writes the
 // switch file and infra/ergo-toggle.path (root) starts or stops Ergo to match.
 import fs from "node:fs/promises";
@@ -49,30 +49,18 @@ function allowed(i: ChatInputCommandInteraction): boolean {
 	return !!config.irc.adminRole && m.roles.cache.has(config.irc.adminRole);
 }
 
-const Irc: DiscordCommand = {
+const ToggleIrc: DiscordCommand = {
 	data: new SlashCommandBuilder()
-		.setName("irc")
-		.setDescription("The unixcore IRC server (irc.unixcore.sh)")
-		.addSubcommand(s => s.setName("status").setDescription("Is the IRC server running?"))
-		.addSubcommand(s => s.setName("off").setDescription("Shut the IRC server off (unix team)"))
-		.addSubcommand(s => s.setName("on").setDescription("Turn the IRC server back on (unix team)")),
+		.setName("toggle_irc")
+		.setDescription("Switch the IRC server (irc.unixcore.sh) off, or back on (unix team)"),
 
 	execute: async i => {
-		const sub = i.options.getSubcommand();
-		const state = ergoState();
-		const sw = await readSwitch();
-
-		if (sub === "status") {
-			const running = state === "active" ? "running" : state === "unknown" ? "in an unknown state" : "off";
-			const note = sw === "off" ? " It was switched off with `/irc off`." : "";
-			return void i.reply({ content: `The IRC server is ${running}.${note}`, ...eph });
-		}
-
 		if (!allowed(i)) return void i.reply({ content: "Only the unix team can switch IRC on or off.", ...eph });
+		await i.deferReply();
+		const quiet = { allowedMentions: { parse: [] } };
 
-		if (sub === "off") {
-			if (sw === "off" && state !== "active") return void i.reply({ content: "IRC is already off.", ...eph });
-			await i.deferReply();
+		// Running (or switched on) -> off; otherwise -> on.
+		if (ergoState() === "active" || ((await readSwitch()) === "on" && ergoState() === "unknown")) {
 			// Tell IRC people before the server goes away.
 			if (bridgeIrc?.connected)
 				for (const ch of config.irc.links.map(l => l.ircChannel))
@@ -80,21 +68,18 @@ const Irc: DiscordCommand = {
 			await Bun.sleep(500);
 			await writeSwitch("off");
 			const now = await waitFor("inactive");
-			return void i.editReply({ allowedMentions: { parse: [] }, content: now === "inactive" || now === "unknown"
-				? `IRC server switched off by ${i.user}. \`/irc on\` brings it back.`
+			return void i.editReply({ ...quiet, content: now === "inactive" || now === "unknown"
+				? `IRC server switched **off** by ${i.user}. Run \`/toggle_irc\` again to bring it back.`
 				: `Asked the IRC server to stop, but it still reports \`${now}\`. Check \`journalctl -u ergo-toggle\` on the box.` });
 		}
 
-		// on
-		if (sw === "on" && state === "active") return void i.reply({ content: "IRC is already on.", ...eph });
-		await i.deferReply();
 		await writeSwitch("on");
 		const now = await waitFor("active");
 		bridgeIrc?.reconnectNow();
-		return void i.editReply({ allowedMentions: { parse: [] }, content: now === "active" || now === "unknown"
-			? `IRC server switched on by ${i.user}: irc.unixcore.sh, port 6697 (tls).`
+		return void i.editReply({ ...quiet, content: now === "active" || now === "unknown"
+			? `IRC server switched **on** by ${i.user}: irc.unixcore.sh, port 6697 (tls).`
 			: `Asked the IRC server to start, but it reports \`${now}\`. Check \`journalctl -u ergo\` on the box.` });
 	},
 };
 
-export default Irc;
+export default ToggleIrc;

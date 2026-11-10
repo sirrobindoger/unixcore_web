@@ -39,7 +39,7 @@ if [ ! -f /etc/ergo/ergo.env ] && grep -q '^IRC_PASSWORD=.' bot/.env; then
 	ERGO_RESTART=1
 fi
 mkdir -p sites suspended trash data
-[ -f data/irc-state ] || echo on > data/irc-state   # /irc on|off switch (bot writes it)
+[ -f data/irc-state ] || echo on > data/irc-state   # /toggle_irc switch (bot writes it)
 chown -R sftpgo:sftpgo $DEST
 chmod 750 $DEST/bot; chmod 640 bot/.env
 chmod 755 scripts/*.sh

@@ -1,5 +1,5 @@
 [Unit]
-Description=Watch the IRC on/off switch the Discord bot writes (/irc on|off)
+Description=Watch the IRC on/off switch the Discord bot writes (/toggle_irc)
 
 [Path]
 # The bot (unprivileged) writes "on" or "off" here; ergo-toggle.service (root) acts on it.
