@@ -70,6 +70,7 @@ export class IrcClient extends EventEmitter {
 	private buf = "";
 	private backoff = 5_000;
 	private stopped = false;
+	private retryTimer: ReturnType<typeof setTimeout> | null = null;
 	private lastSeen = Date.now();
 	private pinger: ReturnType<typeof setInterval> | null = null;
 	private joined = new Set<string>();
@@ -98,6 +99,15 @@ export class IrcClient extends EventEmitter {
 
 	start() {
 		this.stopped = false;
+		this.connect();
+	}
+
+	/** Skip the backoff wait and try now (used right after /irc on). */
+	reconnectNow() {
+		if (this.stopped || this.connected || !this.retryTimer) return;
+		clearTimeout(this.retryTimer);
+		this.retryTimer = null;
+		this.backoff = 5_000;
 		this.connect();
 	}
 
@@ -151,7 +161,7 @@ export class IrcClient extends EventEmitter {
 			if (this.stopped) return;
 			if (wasUp) this.backoff = 5_000;
 			console.warn(`[irc] disconnected, retrying in ${this.backoff / 1000}s`);
-			setTimeout(() => this.connect(), this.backoff);
+			this.retryTimer = setTimeout(() => { this.retryTimer = null; this.connect(); }, this.backoff);
 			this.backoff = Math.min(this.backoff * 2, 120_000);
 		});
 		// Notice a dead link even when the kernel doesn't.

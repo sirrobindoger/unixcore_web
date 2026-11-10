@@ -106,6 +106,9 @@ export const avatarFor = (nick: string) =>
 
 type Link = { discordId: string; ircChannel: string; channel: TextChannel; webhook: Webhook | null };
 
+/** The running bridge's IRC connection, for /irc on|off. Null when the bridge is off. */
+export let bridgeIrc: IrcClient | null = null;
+
 export function startIrcBridge(bot: Client) {
 	const cfg = config.irc;
 	const irc = new IrcClient({
@@ -207,5 +210,6 @@ export function startIrcBridge(bot: Client) {
 		sendToIrc(after, "(edit) ").catch(e => console.warn("[irc] relay failed:", (e as Error).message));
 	});
 
+	bridgeIrc = irc;
 	return irc;
 }

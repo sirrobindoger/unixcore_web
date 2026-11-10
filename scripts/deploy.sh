@@ -26,7 +26,7 @@ install -d -o ergo -g ergo -m750 /var/lib/ergo
 install -d -m755 /etc/ergo
 install -m644 infra/ergo.yaml /etc/ergo/ircd.yaml
 install -m644 -o ergo -g ergo infra/ergo.motd /var/lib/ergo/ergo.motd
-install -m644 infra/ergo.service infra/ergo-certs.service infra/ergo-certs.timer /etc/systemd/system/
+install -m644 infra/ergo.service infra/ergo-certs.service infra/ergo-certs.timer infra/ergo-toggle.path infra/ergo-toggle.service /etc/systemd/system/
 # The bridge's oper login (flood-throttle exemption), hashed from IRC_PASSWORD. Only
 # written once; a new env file needs a restart, not a rehash, to take effect.
 ERGO_RESTART=0
@@ -39,13 +39,14 @@ if [ ! -f /etc/ergo/ergo.env ] && grep -q '^IRC_PASSWORD=.' bot/.env; then
 	ERGO_RESTART=1
 fi
 mkdir -p sites suspended trash data
+[ -f data/irc-state ] || echo on > data/irc-state   # /irc on|off switch (bot writes it)
 chown -R sftpgo:sftpgo $DEST
 chmod 750 $DEST/bot; chmod 640 bot/.env
 chmod 755 scripts/*.sh
 sudo -u sftpgo -H env HOME=/var/lib/sftpgo /usr/local/bin/bun install --frozen-lockfile --cwd bot >/dev/null
 caddy validate --config /etc/caddy/Caddyfile >/dev/null
 systemctl daemon-reload
-systemctl enable --now sftpgo caddy ergo ergo-certs.timer unixcore-bot >/dev/null
+systemctl enable --now sftpgo caddy ergo ergo-certs.timer ergo-toggle.path unixcore-bot >/dev/null
 systemctl restart sftpgo
 systemctl reload caddy || systemctl restart caddy
 # Rehash rather than restart, so a deploy doesn't kick everyone off IRC. Certs first:

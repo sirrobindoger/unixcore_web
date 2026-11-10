@@ -128,6 +128,12 @@ Turning it on:
    bridge from Ergo's flood throttling (otherwise a busy channel queues up).
 4. `scripts/deploy.sh`.
 
+**Switching it off:** `/irc off` and `/irc on` (Administrators and the role in
+`IRC_ADMIN_ROLE`, the unix team) shut the server down or bring it back; `/irc status`
+works for anyone. The bot writes `on`/`off` to `data/irc-state`, and the root
+`ergo-toggle.path` unit starts or stops Ergo to match. While it says `off`, Ergo
+stays off through reboots and deploys (`ExecCondition` in `infra/ergo.service`).
+
 On the box: binary `/usr/local/bin/ergo` (pinned in `scripts/install-ergo.sh`),
 config `/etc/ergo/ircd.yaml` (from `infra/ergo.yaml`), data and MOTD in
 `/var/lib/ergo`, unit `ergo`. `scripts/ergo-certs.sh` copies Caddy's cert in

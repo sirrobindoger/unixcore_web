@@ -1,0 +1,6 @@
+[Unit]
+Description=Start or stop Ergo to match /srv/unixcore/data/irc-state
+
+[Service]
+Type=oneshot
+ExecStart=/srv/unixcore/scripts/ergo-toggle.sh

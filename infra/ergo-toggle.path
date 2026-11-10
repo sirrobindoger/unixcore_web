@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch the IRC on/off switch the Discord bot writes (/irc on|off)
+
+[Path]
+# The bot (unprivileged) writes "on" or "off" here; ergo-toggle.service (root) acts on it.
+PathModified=/srv/unixcore/data/irc-state
+Unit=ergo-toggle.service
+
+[Install]
+WantedBy=multi-user.target

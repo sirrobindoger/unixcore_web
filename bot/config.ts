@@ -63,6 +63,11 @@ export const config = {
 		// The bridge registers this nick as an account on first connect and founds
 		// the channels with it, which gives it ops (needed for RELAYMSG).
 		password: opt("IRC_PASSWORD", ""),
+		// /irc on|off writes "on"/"off" here; on the VPS a root systemd path unit
+		// (infra/ergo-toggle.path) starts/stops Ergo to match.
+		stateFile: abs(opt("IRC_STATE_FILE", "data/irc-state")),
+		// Discord role allowed to use /irc on|off (Administrators always can).
+		adminRole: opt("IRC_ADMIN_ROLE", ""),
 	},
 };
 
