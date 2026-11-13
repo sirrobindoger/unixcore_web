@@ -103,12 +103,13 @@ const avatars = fs.existsSync(AVATAR_DIR)
 const PINNED: Record<string, string> = {
 	healie: "touhou-patchouli.png",
 	sirro: "bocchi-kikuri.png",
-	catmaster1010: "touhou-flandre.png",
+	catmaster1010: "pinned/touhou-chen.png",
+	fishmeftax: "touhou-aya.png",
 };
 export function avatarFor(nick: string) {
 	if (!avatars.length) return undefined;
 	const pinned = PINNED[nick.toLowerCase().replace(/[_`|^]+$/, "")];
-	const file = pinned && avatars.includes(pinned) ? pinned : avatars[nickHash(nick) % avatars.length];
+	const file = pinned && fs.existsSync(path.join(AVATAR_DIR, pinned)) ? pinned : avatars[nickHash(nick) % avatars.length];
 	return `${config.publicUrl}/_hub/irc/${file}`;
 }
 
