@@ -99,8 +99,18 @@ const AVATAR_DIR = path.join(import.meta.dir, "templates", "hub", "irc");
 const avatars = fs.existsSync(AVATAR_DIR)
 	? fs.readdirSync(AVATAR_DIR).filter(f => /\.(png|gif|jpe?g)$/i.test(f)).sort()
 	: [];
-export const avatarFor = (nick: string) =>
-	avatars.length ? `${config.publicUrl}/_hub/irc/${avatars[nickHash(nick) % avatars.length]}` : undefined;
+// Nicks that picked their avatar instead of taking the hash's (lowercase, no trailing _`|^).
+const PINNED: Record<string, string> = {
+	healie: "touhou-patchouli.png",
+	sirro: "bocchi-kikuri.png",
+	catmaster1010: "touhou-flandre.png",
+};
+export function avatarFor(nick: string) {
+	if (!avatars.length) return undefined;
+	const pinned = PINNED[nick.toLowerCase().replace(/[_`|^]+$/, "")];
+	const file = pinned && avatars.includes(pinned) ? pinned : avatars[nickHash(nick) % avatars.length];
+	return `${config.publicUrl}/_hub/irc/${file}`;
+}
 
 // ---------- the bridge ----------
 
