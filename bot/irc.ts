@@ -103,7 +103,7 @@ const avatars = fs.existsSync(AVATAR_DIR)
 const PINNED: Record<string, string> = {
 	healie: "touhou-patchouli.png",
 	sirro: "bocchi-kikuri.png",
-	catmaster1010: "pinned/touhou-chen.png",
+	catmaster1010: "pinned/chen.png",
 	fishmeftax: "touhou-aya.png",
 };
 export function avatarFor(nick: string) {
