@@ -97,9 +97,10 @@ Mods: `/site guestbook list` · `/site guestbook delete <id>` ·
 ## IRC
 
 An Ergo IRC server runs on the VPS at **irc.unixcore.sh:6697**, TLS only, using
-Caddy's Let's Encrypt certs (picked by SNI). The `irc` DNS record is a DNS-only A
-record to the VPS (Cloudflare's proxy doesn't carry IRC). `unixcore.sh:6697` no
-longer works since the apex went behind Cloudflare on 2026-11-14.
+Caddy's Let's Encrypt certs (picked by SNI). The `irc` DNS record is DNS-only
+(Cloudflare's proxy doesn't carry IRC) and points at the same Reserved IP as
+`sftp`, not the droplet's own IP (see VPS below). `unixcore.sh:6697` no longer
+works since the apex went behind Cloudflare on 2026-11-14.
 Bridged pairs (`IRC_BRIDGES` in the server's `bot/.env`): Discord ┃「-irc-」 <-> `#irc`,
 ╭「-general-」 <-> `#general`. `#irc` used to be `#unixcore`; Ergo's RENAME kept its
 registration and ops. `#unixcore` there is bridged to one
@@ -150,8 +151,9 @@ DigitalOcean droplet `unixcore` (NYC3), Ubuntu 24.04. ssh alias `unixcore`
 (root, port **2222** — SFTPGo owns port 22). Cloned on 2026-11-14 from the old
 `vpn-us-nyc` droplet, which is now only a Tailscale exit node. Its public IP is
 kept out of DNS and out of this repo: the web hostnames are Cloudflare-proxied,
-and `sftp.unixcore.sh` points at a separate DigitalOcean Reserved IP attached to
-the same droplet, so an attack on the SFTP address can't reveal the web origin.
+and `sftp.unixcore.sh` and `irc.unixcore.sh` point at a separate DigitalOcean
+Reserved IP attached to the same droplet, so attacking those can't reveal the web
+origin.
 Don't add a DNS-only record that points at the droplet's own IP.
 
 - `scripts/vps-setup.sh` — one-time provisioning (swap, sshd → 2222, Caddy,
