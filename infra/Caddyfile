@@ -83,6 +83,12 @@ unixcore.sh, www.unixcore.sh, beta.unixcore.sh {
 # exists so Caddy keeps a Let's Encrypt cert for it, which scripts/ergo-certs.sh hands
 # to Ergo. Browsers that wander here get sent to the hub.
 irc.unixcore.sh {
+	# The firewall only lets Cloudflare reach 80/443, and irc is DNS-only, so Let's
+	# Encrypt can't do the HTTP challenge here: renew through Cloudflare DNS instead
+	# (token from /etc/caddy/cloudflare.env, see infra/caddy-cloudflare.conf).
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
 	redir https://unixcore.sh{uri} 302
 }
 

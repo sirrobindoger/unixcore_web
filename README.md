@@ -168,6 +168,9 @@ So scanners can't find that IP either:
 - Caddy on the server is the apt package swapped for a build with the
   `caddy-dns/cloudflare` plugin (`caddy add-package`, package held), because
   Let's Encrypt can no longer reach port 80 directly for `irc.unixcore.sh`.
+  Its token lives only on the server in `/etc/caddy/cloudflare.env`
+  (`CF_API_TOKEN`; see `infra/caddy-cloudflare.conf`); deploy refuses to run
+  without it.
 
 - `scripts/vps-setup.sh` — one-time provisioning (swap, sshd → 2222, Caddy,
   SFTPGo, Bun). Already applied.

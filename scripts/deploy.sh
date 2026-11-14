@@ -17,7 +17,14 @@ set -euo pipefail
 cd $DEST
 [ -f bot/.env ] || { echo "$DEST/bot/.env missing on the server — copy it up first"; exit 1; }
 caddy list-modules 2>/dev/null | grep -q '^dns.providers.cloudflare\$' || { echo "caddy lacks the Cloudflare DNS plugin; see scripts/vps-setup.sh"; exit 1; }
+grep -q '^CF_API_TOKEN=.' /etc/caddy/cloudflare.env 2>/dev/null || { echo "/etc/caddy/cloudflare.env (CF_API_TOKEN) missing; see infra/caddy-cloudflare.conf"; exit 1; }
 install -m644 infra/Caddyfile /etc/caddy/Caddyfile
+# Caddy only reads the token's env file at start, so a new drop-in means a restart.
+CADDY_RESTART=0
+if ! cmp -s infra/caddy-cloudflare.conf /etc/systemd/system/caddy.service.d/cloudflare.conf; then
+	install -D -m644 infra/caddy-cloudflare.conf /etc/systemd/system/caddy.service.d/cloudflare.conf
+	CADDY_RESTART=1
+fi
 # SFTP and IRC listen only on the Reserved IP (DigitalOcean delivers it to the
 # droplet's private "anchor" address), never on the droplet's own public IP, which
 # stays hidden behind Cloudflare. nonlocal_bind lets them start at boot before the
@@ -56,11 +63,11 @@ chown -R sftpgo:sftpgo $DEST
 chmod 750 $DEST/bot; chmod 640 bot/.env
 chmod 755 scripts/*.sh
 sudo -u sftpgo -H env HOME=/var/lib/sftpgo /usr/local/bin/bun install --frozen-lockfile --cwd bot >/dev/null
-caddy validate --config /etc/caddy/Caddyfile >/dev/null
+(set -a; . /etc/caddy/cloudflare.env; caddy validate --config /etc/caddy/Caddyfile >/dev/null)
 systemctl daemon-reload
 systemctl enable --now sftpgo caddy ergo ergo-certs.timer ergo-toggle.path unixcore-bot >/dev/null
 systemctl restart sftpgo
-systemctl reload caddy || systemctl restart caddy
+if [ \$CADDY_RESTART = 1 ]; then systemctl restart caddy; else systemctl reload caddy || systemctl restart caddy; fi
 # Rehash rather than restart, so a deploy doesn't kick everyone off IRC. Certs first:
 # a rehash with a cert file missing is rejected and Ergo keeps the old config.
 scripts/ergo-certs.sh --no-reload
