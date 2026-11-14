@@ -16,15 +16,27 @@ ssh -p "$PORT" "$HOST" bash -s <<REMOTE
 set -euo pipefail
 cd $DEST
 [ -f bot/.env ] || { echo "$DEST/bot/.env missing on the server — copy it up first"; exit 1; }
+caddy list-modules 2>/dev/null | grep -q '^dns.providers.cloudflare\$' || { echo "caddy lacks the Cloudflare DNS plugin; see scripts/vps-setup.sh"; exit 1; }
 install -m644 infra/Caddyfile /etc/caddy/Caddyfile
-install -m640 -o root -g sftpgo infra/sftpgo.vps.json /etc/sftpgo/sftpgo.json
+# SFTP and IRC listen only on the Reserved IP (DigitalOcean delivers it to the
+# droplet's private "anchor" address), never on the droplet's own public IP, which
+# stays hidden behind Cloudflare. nonlocal_bind lets them start at boot before the
+# address is up.
+ANCHOR=\$(curl -sf -m 5 http://169.254.169.254/metadata/v1/interfaces/public/0/anchor_ipv4/address || true)
+[ -n "\$ANCHOR" ] || { echo "no anchor IP in droplet metadata"; exit 1; }
+echo 'net.ipv4.ip_nonlocal_bind = 1' > /etc/sysctl.d/60-unixcore-bind.conf
+sysctl -q -p /etc/sysctl.d/60-unixcore-bind.conf
+sed "s/@ANCHOR_IP@/\$ANCHOR/" infra/sftpgo.vps.json > /etc/sftpgo/sftpgo.json
+chown root:sftpgo /etc/sftpgo/sftpgo.json; chmod 640 /etc/sftpgo/sftpgo.json
 install -m644 infra/unixcore-bot.service /etc/systemd/system/unixcore-bot.service
 # IRC (Ergo): binary, user, config, MOTD, units. Cert comes from Caddy via ergo-certs.sh.
 bash scripts/install-ergo.sh
 id ergo >/dev/null 2>&1 || useradd --system --home-dir /var/lib/ergo --shell /usr/sbin/nologin ergo
 install -d -o ergo -g ergo -m750 /var/lib/ergo
 install -d -m755 /etc/ergo
-install -m644 infra/ergo.yaml /etc/ergo/ircd.yaml
+sed 's/^        ":6697":\$/        "'\$ANCHOR':6697":/' infra/ergo.yaml > /etc/ergo/ircd.yaml
+chmod 644 /etc/ergo/ircd.yaml
+grep -q "\"\$ANCHOR:6697\":" /etc/ergo/ircd.yaml || { echo "could not pin Ergo's :6697 listener to \$ANCHOR"; exit 1; }
 install -m644 -o ergo -g ergo infra/ergo.motd /var/lib/ergo/ergo.motd
 install -m644 infra/ergo.service infra/ergo-certs.service infra/ergo-certs.timer infra/ergo-toggle.path infra/ergo-toggle.service /etc/systemd/system/
 # The bridge's oper login (flood-throttle exemption), hashed from IRC_PASSWORD. Only

@@ -21,7 +21,7 @@
     "naming_rules": 1
   },
   "sftpd": {
-    "bindings": [{ "port": 22, "address": "" }],
+    "bindings": [{ "port": 22, "address": "@ANCHOR_IP@" }],
     "host_keys": ["/etc/sftpgo/id_rsa", "/etc/sftpgo/id_ecdsa", "/etc/sftpgo/id_ed25519"],
     "max_auth_tries": 5,
     "enabled_ssh_commands": [],

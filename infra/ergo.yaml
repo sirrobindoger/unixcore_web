@@ -14,7 +14,9 @@ server:
         # Plaintext, loopback only: the Discord bridge in the bot connects here.
         "127.0.0.1:6667":
         "[::1]:6667":
-        # Public, TLS only. Two certs picked by SNI: unixcore.sh (also the default for
+        # Public, TLS only. On the VPS, deploy.sh rewrites this line to listen on the
+        # Reserved IP's anchor address only, so the droplet's own IP stays closed.
+        # Two certs picked by SNI: unixcore.sh (also the default for
         # clients that send no SNI) and irc.unixcore.sh. On the VPS both are Caddy's,
         # copied in by scripts/ergo-certs.sh; locally scripts/dev.sh makes self-signed ones.
         ":6697":

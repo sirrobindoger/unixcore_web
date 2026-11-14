@@ -156,6 +156,19 @@ Reserved IP attached to the same droplet, so attacking those can't reveal the we
 origin.
 Don't add a DNS-only record that points at the droplet's own IP.
 
+So scanners can't find that IP either:
+
+- SFTPGo (:22) and Ergo (:6697) listen only on the Reserved IP's anchor address
+  (deploy.sh reads it from droplet metadata and writes it into their configs), so
+  on the droplet's own IP those ports are closed.
+- DigitalOcean Cloud Firewall `unixcore-origin` allows 80/443/2096 only from
+  Cloudflare's ranges, and 22, 6697, 2222 (admin ssh) and ICMP from anywhere.
+  If Cloudflare publishes new ranges, update both this firewall and
+  `trusted_proxies` in `infra/Caddyfile`.
+- Caddy on the server is the apt package swapped for a build with the
+  `caddy-dns/cloudflare` plugin (`caddy add-package`, package held), because
+  Let's Encrypt can no longer reach port 80 directly for `irc.unixcore.sh`.
+
 - `scripts/vps-setup.sh` — one-time provisioning (swap, sshd → 2222, Caddy,
   SFTPGo, Bun). Already applied.
 - `scripts/deploy.sh` — rsync the repo to `/srv/unixcore`, install the configs

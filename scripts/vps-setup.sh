@@ -29,6 +29,10 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmo
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
 add-apt-repository -y ppa:sftpgo/sftpgo
 apt-get update -qq && apt-get install -y -qq caddy sftpgo
+# Cloudflare DNS plugin: irc.unixcore.sh's cert renews by DNS-01, since the firewall
+# keeps Let's Encrypt from reaching port 80 directly. Held so apt doesn't swap the
+# plain build back in.
+caddy add-package github.com/caddy-dns/cloudflare && apt-mark hold caddy
 systemctl stop sftpgo   # package starts it on :2022 with its own config; deploy.sh replaces that
 curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash
 
