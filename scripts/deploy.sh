@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 rsync -az --delete -e "ssh -p $PORT" \
 	--exclude .git --exclude node_modules --exclude data --exclude sites \
-	--exclude suspended --exclude trash --exclude bot/.env --exclude .DS_Store \
+	--exclude suspended --exclude trash --exclude bot/.env --exclude .DS_Store --exclude .cloudflare \
 	./ "$HOST:$DEST/"
 
 ssh -p "$PORT" "$HOST" bash -s <<REMOTE

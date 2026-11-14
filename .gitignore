@@ -5,3 +5,4 @@ suspended/
 trash/
 bot/.env
 .DS_Store
+.cloudflare/
