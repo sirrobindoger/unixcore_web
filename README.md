@@ -146,8 +146,13 @@ Locally, `scripts/dev.sh` also starts Ergo if `ergo` is on your PATH (plain on
 
 ## VPS
 
-DigitalOcean droplet `45.55.222.209`, Ubuntu 24.04. ssh alias `unixcore`
-(root, port **2222** — SFTPGo owns port 22).
+DigitalOcean droplet `unixcore` (NYC3), Ubuntu 24.04. ssh alias `unixcore`
+(root, port **2222** — SFTPGo owns port 22). Cloned on 2026-11-14 from the old
+`vpn-us-nyc` droplet, which is now only a Tailscale exit node. Its public IP is
+kept out of DNS and out of this repo: the web hostnames are Cloudflare-proxied,
+and `sftp.unixcore.sh` points at a separate DigitalOcean Reserved IP attached to
+the same droplet, so an attack on the SFTP address can't reveal the web origin.
+Don't add a DNS-only record that points at the droplet's own IP.
 
 - `scripts/vps-setup.sh` — one-time provisioning (swap, sshd → 2222, Caddy,
   SFTPGo, Bun). Already applied.

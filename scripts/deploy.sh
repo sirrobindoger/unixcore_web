@@ -2,7 +2,7 @@
 # Push the repo to the VPS and restart what changed. Safe to re-run.
 # One-time provisioning (packages, swap, ssh port) lives in scripts/vps-setup.sh.
 set -euo pipefail
-HOST=${HOST:-root@45.55.222.209}
+HOST=${HOST:-unixcore}   # ssh alias; the IP stays out of this public repo
 PORT=${PORT:-2222}
 DEST=/srv/unixcore
 cd "$(dirname "$0")/.."
