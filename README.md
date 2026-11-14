@@ -96,9 +96,10 @@ Mods: `/site guestbook list` · `/site guestbook delete <id>` ·
 
 ## IRC
 
-An Ergo IRC server runs on the VPS at **irc.unixcore.sh:6697** (also reachable as
-unixcore.sh:6697), TLS only, using Caddy's Let's Encrypt certs (picked by SNI). The
-`irc` DNS record is an A record to the VPS, DNS-only like the others.
+An Ergo IRC server runs on the VPS at **irc.unixcore.sh:6697**, TLS only, using
+Caddy's Let's Encrypt certs (picked by SNI). The `irc` DNS record is a DNS-only A
+record to the VPS (Cloudflare's proxy doesn't carry IRC). `unixcore.sh:6697` no
+longer works since the apex went behind Cloudflare on 2026-11-14.
 Bridged pairs (`IRC_BRIDGES` in the server's `bot/.env`): Discord ┃「-irc-」 <-> `#irc`,
 ╭「-general-」 <-> `#general`. `#irc` used to be `#unixcore`; Ergo's RENAME kept its
 registration and ops. `#unixcore` there is bridged to one
@@ -163,13 +164,28 @@ Caddy serves `sites/` on 80/443 with Let's Encrypt and proxies only the SFTPGo
 web client (`/web/client`, `/api/v2/user`, `/static`). The admin UI is not
 exposed: `ssh -L 8080:127.0.0.1:8080 unixcore` then http://localhost:8080/web/admin.
 
-**DNS:** the A record must be DNS-only (grey cloud) in Cloudflare — SFTP on 22
-can't go through the proxy and Let's Encrypt's HTTP challenge needs port 80 to
-reach the box directly.
+**DNS / Cloudflare:** since 2026-11-14 (after a DDoS got the droplet's IP
+blackholed by DigitalOcean) `unixcore.sh`, `www` and `beta` are proxied (orange
+cloud), so web traffic, and the heart-rate port 2096, goes through Cloudflare.
+`sftp.unixcore.sh` (SFTP on 22) and `irc.unixcore.sh` (6697) can't go through the
+proxy and stay DNS-only, which means they still publish the droplet's IP. Zone
+settings this relies on:
+
+- SSL/TLS mode **Full (strict)**. Flexible makes Cloudflare talk plain HTTP to
+  Caddy, which redirects to HTTPS, and the site loops.
+- **Always Use HTTPS off**. Caddy renews its Let's Encrypt certs with the HTTP-01
+  challenge on port 80, which arrives through Cloudflare; Caddy does the HTTPS
+  redirect itself.
+- Browser Cache TTL **Respect existing headers**. Caddy sends
+  `Cache-Control: public, max-age=60` on site files so re-uploads show up fast.
+
+Caddy trusts Cloudflare's ranges (`trusted_proxies` at the top of
+`infra/Caddyfile`) and hands the visitor's IP (`CF-Connecting-IP`) to the
+guestbook and SFTPGo. If Cloudflare publishes new ranges, update that list.
 
 **Domain:** live on unixcore.sh (plus www and the beta alias) since 2026-09-11.
 To change it, edit the hostname block at the bottom of `infra/Caddyfile`,
-update `PUBLIC_URL`, `SFTP_HOST`, `WEBCLIENT_URL` in the server's `bot/.env`,
+update `PUBLIC_URL`, `SFTP_HOST` (`sftp.<domain>`), `WEBCLIENT_URL` in the server's `bot/.env`,
 run `scripts/deploy.sh`.
 
 **Heart-rate API:** milk's pages call `/api/heartbeat`, which Caddy proxies to
